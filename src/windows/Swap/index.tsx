@@ -21,6 +21,7 @@ import { RootStackParamList } from "../../Main";
 import PairDataCard from "../../components/PairDataCard";
 import BigNumber from "bignumber.js";
 import { crypto } from 'bitcoinjs-lib';
+import { getSeed } from "../../storage/keystore";
 
 interface ILightningInfoProps {
   navigation: StackNavigationProp<RootStackParamList, "KeysendExperiment">;
@@ -41,7 +42,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [preimage, setPreimage] = useState("");
   const [preimageHash, setPreimageHash] = useState("");
 
-  const [claimAddress, setClaimAddress] = useState("");
+  const [claimAddress, setClaimAddress] = useState("0x333b238f8ead1230686b32b23070ff4bfb006888");
 
   const decimals = new BigNumber('100000000');
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
@@ -53,6 +54,10 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // await getRouteHints();
       await getPairs();
 
+      // doesnt work on web - dummy value
+      // const walletseed = await getSeed();
+      // console.log('walletseed ', walletseed);
+
       // prepare preimage and hash for swap
       const generatedPreimageArray = await generateSecureRandom(32);
       // const hash2 = sha("sha256").update(generatedPreimageArray).digest();
@@ -61,7 +66,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
       setPreimage(generatedPreimage);
       setPreimageHash(getHexString(preimageHash));
-      console.log('got preimage, preimagehash, hash2: ', generatedPreimage, ' and ', getHexString(preimageHash));
+      console.log('got preimage, preimagehash: ', generatedPreimage, ' and ', getHexString(preimageHash));
     })();
   }, []);
 
@@ -159,14 +164,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     const feePercentage = new BigNumber(pairData.fees.percentage/100);
     const percentageFee = feePercentage.times(baseAmount);
     let minerFee = new BigNumber(pairData.fees.minerFees.baseAsset.normal).dividedBy(decimals);
-    console.log('calculateFee minerFee, percentageFee ', minerFee.toNumber(), percentageFee.toNumber());
+    // console.log('calculateFee minerFee, percentageFee ', minerFee.toNumber(), percentageFee.toNumber());
     // if (this.baseAsset.isLightning) {
     //   minerFee = minerFee.times(new BigNumber(1).dividedBy(rate));
     // }
     if (isNaN(percentageFee.toNumber())) {
       return new BigNumber(0);
     }
-    console.log('calculateFee returning ', percentageFee.plus(minerFee).toNumber());
+    // console.log('calculateFee returning ', percentageFee.plus(minerFee).toNumber());
     return percentageFee.plus(minerFee);
   };
 
@@ -180,32 +185,17 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // }
       setSending(true);
 
-      // req
-    //   {
-
-    // }
-
-    // response
-  //   {
-  //     "id": "scxvqh",
-  //     "invoice": "lnbc100u1psl8y0fpp5964s4jgy2rmcj6648s9352me0z33qttwesxp44e2dfwmvzt0c2vqdpq2djkuepqw3hjqkz42dzzqctyv3ex2umncqzxrxqrrsssp56qkf3h398gaqg2qnap4pz3vd6cm29yn9w82eu2tu3g3thc82vrds9qyyssqpn9z30ekwggz49zx97s0ayz87fcj5vz4vuprhed5lg6yzljxecwzu8ky08kh4wyqzrh33c7txmzkx50epzme2spaflpg79gytysz5sqpevj2kh",
-  //     "redeemScript": "307862353939393739354245304562423562416232333134344141354644364130324430383032393946",
-  //     "refundAddress": "0x4f3b4f618b9b23ccc33beb6352df2f93f082cad4",
-  //     "lockupAddress": "0x1a43ab13ab58de67b4e7eede60f1fc08bb02e643",
-  //     "timeoutBlockHeight": 4042708,
-  //     "onchainAmount": 366355139
-  // }
-
       const createSwapUrl = `https://api.marduk.exchange:9001/createswap`;
       const swapRequestBody = {
         "type": "reversesubmarine",
         "pairId": "BTC/XUSD",
-        "invoiceAmount": baseInput,
+        "invoiceAmount": parseFloat(baseInput),
         "orderSide": "sell",
-        "claimPublicKey": claimAddress,
+        "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
         claimAddress,
         preimageHash,
       }
+      console.log('swapRequestBody ', swapRequestBody);
       const result = await fetch(createSwapUrl, {
         method: 'POST',
         headers: {
@@ -214,10 +204,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         },
         body: JSON.stringify(swapRequestBody),
       });
-      let btcxusdPairData = (await result.json())["pairs"]["BTC/XUSD"];
-      btcxusdPairData.name = "BTC/XUSD"
-      console.log('btcxusdPairData ', btcxusdPairData);
-      setPairdata(btcxusdPairData);
+      let swapResponse = await result.json();
+      console.log('swapResponse ', swapResponse);
 
       // const result = await sendKeysendPaymentV2(
       //   pubkeyInput,
