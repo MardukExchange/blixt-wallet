@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 
 import { sendKeysendPaymentV2 } from "../../lndmobile/index";
 import Long from "long";
-import { toast, hexToUint8Array } from "../../utils";
+import { toast, hexToUint8Array, getHexString, uint8ArrayToString, getHexBuffer, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
 import { useStoreState, useStoreActions } from "../../state/store";
 import { generateSecureRandom } from "react-native-securerandom";
 import { lnrpc } from "../../../proto/lightning";
@@ -19,6 +19,8 @@ import { ITransaction } from "../../storage/database/transaction";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../../Main";
 import PairDataCard from "../../components/PairDataCard";
+import BigNumber from "bignumber.js";
+import { crypto } from 'bitcoinjs-lib';
 
 interface ILightningInfoProps {
   navigation: StackNavigationProp<RootStackParamList, "KeysendExperiment">;
@@ -27,21 +29,39 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [sending, setSending] = useState(false);
   const myNodeInfo = useStoreState((store) => store.lightning.nodeInfo);
   const [routehints, setRoutehints] = useState("");
-  const [pairData, setPairdata] = useState({name: "", rate: 0, limits: {maximal: 0, minimal: 0}, fees: {percentage: 0}});
+  const [pairData, setPairdata] = useState({name: "", rate: 0, limits: {maximal: 0, minimal: 0}, fees: {percentage: 0, minerFees: {baseAsset: {normal: 0}}}});
 
   const [pubkeyInput, setPubkeyInput] = useState("");
   const [routehintsInput, setRoutehintsInput] = useState("");
-  const [satInput, setSatInput] = useState("");
-  const [messageInput, setMessageInput] = useState("");
 
+  const [baseInput, setBaseInput] = useState("");
+  const [quoteInput, setQuoteInput] = useState("");
+  const [baseSymbol, setBaseSymbol] = useState("sats");
+  const [quoteSymbol, setQuoteSymbol] = useState("xusd");
+  const [preimage, setPreimage] = useState("");
+  const [preimageHash, setPreimageHash] = useState("");
+
+  const [claimAddress, setClaimAddress] = useState("");
+
+  const decimals = new BigNumber('100000000');
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
-
+  
   const name = useStoreState((store) => store.settings.name) || "";
 
   useEffect(() => {
     (async () => {
       // await getRouteHints();
       await getPairs();
+
+      // prepare preimage and hash for swap
+      const generatedPreimageArray = await generateSecureRandom(32);
+      // const hash2 = sha("sha256").update(generatedPreimageArray).digest();
+      const generatedPreimage = bytesToHexString(generatedPreimageArray);
+      // console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
+      const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
+      setPreimage(generatedPreimage);
+      setPreimageHash(getHexString(preimageHash));
+      console.log('got preimage, preimagehash, hash2: ', generatedPreimage, ' and ', getHexString(preimageHash));
     })();
   }, []);
 
@@ -60,15 +80,145 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     });
   }, [navigation]);
 
+  // const calcAmount = (value: string) => {
+  //   console.log('calcAmount, pairData.rate ', value, pairData.rate);
+  //   const btcxusdrate = pairData.rate;
+  //   console.log('xusdAmount ', value*pairData.rate/10**8);
+  //   setSatInput(value);
+  //   setXusdInput()
+  // }
+
+  // const randomBytes = (size: number) => {
+  //   const bytes = Buffer.allocUnsafe(size);
+  //   global.crypto.getRandomValues(bytes);
+  //   return bytes;
+  // };
+
+  const updateBaseAmount = (quoteAmount: string) => {
+    const amount = new BigNumber(quoteAmount);
+    const rate = new BigNumber(pairData.rate);
+
+    const newBase = amount.dividedBy(rate);
+    const fee = calculateFee(newBase, rate);
+
+    const newBaseWithFee = fee.plus(newBase).multipliedBy(decimals);
+    // const inputError = !this.checkBaseAmount(newBaseWithFee);
+
+    if(!newBaseWithFee.isNaN()) {
+      setBaseInput(newBaseWithFee.toFixed(0));
+      setQuoteInput(amount.toString());
+    } else {
+      setBaseInput("0");
+      setQuoteInput("0");
+    }
+
+    // this.setState({
+    //   quoteAmount: amount,
+    //   baseAmount: new BigNumber(newBaseWithFee.toFixed(8)),
+    //   feeAmount: fee,
+    //   inputError,
+    //   errorMessage: 'Invalid amount',
+    // });
+  };
+
+  const updateQuoteAmount = (baseAmount: string) => {
+    
+    // console.log('updateQuoteAmount pairData ', pairData);
+    if (!pairData.rate) return;
+
+    // console.log('updateQuoteAmount ', baseAmount);
+    const amount = new BigNumber(baseAmount).dividedBy(decimals);
+    const rate = new BigNumber(pairData.rate);
+    let fee = calculateFee(amount, rate);
+    // console.log('updateQuoteAmount amount, rate ', amount.toNumber(), rate.toNumber());
+    // console.log('updateQuoteAmount fee ', fee.toNumber());
+    const quote = amount
+      .times(rate)
+      .minus(fee.times(rate))
+      .toFixed(8);
+    // console.log('updateQuoteAmount quote ', quote);
+    let newQuote = new BigNumber(quote);
+    if (newQuote.isLessThanOrEqualTo(0) || newQuote.isNaN()) {
+      newQuote = new BigNumber('0');
+    }
+    // console.log('newQuote ', newQuote);
+    setBaseInput(baseAmount);
+    setQuoteInput(newQuote.toNumber().toFixed(2));
+
+    // const inputError = !this.checkBaseAmount(amount);
+    // this.setState({
+    //   quoteAmount: newQuote,
+    //   baseAmount: amount,
+    //   feeAmount: fee,
+    //   inputError,
+    //   errorMessage: 'Invalid amount',
+    // });
+  };
+
+  const calculateFee = (baseAmount: BigNumber, rate: BigNumber) => {
+    const feePercentage = new BigNumber(pairData.fees.percentage/100);
+    const percentageFee = feePercentage.times(baseAmount);
+    let minerFee = new BigNumber(pairData.fees.minerFees.baseAsset.normal).dividedBy(decimals);
+    console.log('calculateFee minerFee, percentageFee ', minerFee.toNumber(), percentageFee.toNumber());
+    // if (this.baseAsset.isLightning) {
+    //   minerFee = minerFee.times(new BigNumber(1).dividedBy(rate));
+    // }
+    if (isNaN(percentageFee.toNumber())) {
+      return new BigNumber(0);
+    }
+    console.log('calculateFee returning ', percentageFee.plus(minerFee).toNumber());
+    return percentageFee.plus(minerFee);
+  };
+
   const onClickSend = async () => {
     try {
-      if (!satInput) {
+      if (!baseInput || !quoteInput) {
         throw new Error("Check amount");
       }
       // else if (!pubkeyInput) {
       //   throw new Error("Missing pubkey");
       // }
       setSending(true);
+
+      // req
+    //   {
+
+    // }
+
+    // response
+  //   {
+  //     "id": "scxvqh",
+  //     "invoice": "lnbc100u1psl8y0fpp5964s4jgy2rmcj6648s9352me0z33qttwesxp44e2dfwmvzt0c2vqdpq2djkuepqw3hjqkz42dzzqctyv3ex2umncqzxrxqrrsssp56qkf3h398gaqg2qnap4pz3vd6cm29yn9w82eu2tu3g3thc82vrds9qyyssqpn9z30ekwggz49zx97s0ayz87fcj5vz4vuprhed5lg6yzljxecwzu8ky08kh4wyqzrh33c7txmzkx50epzme2spaflpg79gytysz5sqpevj2kh",
+  //     "redeemScript": "307862353939393739354245304562423562416232333134344141354644364130324430383032393946",
+  //     "refundAddress": "0x4f3b4f618b9b23ccc33beb6352df2f93f082cad4",
+  //     "lockupAddress": "0x1a43ab13ab58de67b4e7eede60f1fc08bb02e643",
+  //     "timeoutBlockHeight": 4042708,
+  //     "onchainAmount": 366355139
+  // }
+
+      const createSwapUrl = `https://api.marduk.exchange:9001/createswap`;
+      const swapRequestBody = {
+        "type": "reversesubmarine",
+        "pairId": "BTC/XUSD",
+        "invoiceAmount": baseInput,
+        "orderSide": "sell",
+        "claimPublicKey": claimAddress,
+        claimAddress,
+        preimageHash,
+      }
+      const result = await fetch(createSwapUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(swapRequestBody),
+      });
+      let btcxusdPairData = (await result.json())["pairs"]["BTC/XUSD"];
+      btcxusdPairData.name = "BTC/XUSD"
+      console.log('btcxusdPairData ', btcxusdPairData);
+      setPairdata(btcxusdPairData);
+
       // const result = await sendKeysendPaymentV2(
       //   pubkeyInput,
       //   Long.fromValue(Number.parseInt(satInput, 10)),
@@ -194,30 +344,33 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   // };
 
   const formItems = [{
-    key: "AMOUNT_SAT",
-    title: `Amount sat`,
+    key: "AMOUNT_BASE",
+    title: `From: Amount ${baseSymbol}`,
     component: (
       <Input
         testID="input-amount-sat"
-        value={satInput}
-        onChangeText={setSatInput}
+        value={baseInput}
+        onChangeText={updateQuoteAmount}
         placeholder="0"
         keyboardType="numeric"
         returnKeyType="done"
       />
     )}, 
-    // {
-    //   key: "PUBKEY",
-    //   title: `Public key`,
-    //   component: (
-    //     <Input
-    //       testID="input-pubkey"
-    //       value={pubkeyInput}
-    //       onChangeText={setPubkeyInput}
-    //       placeholder="Pubkey"
-    //     />
-    //   )
-    // }, {
+    {
+      key: "AMOUNT_QUOTE",
+      title: `To: Amount  ${quoteSymbol}`,
+      component: (
+        <Input
+          testID="input-amount-xusd"
+          value={quoteInput}
+          onChangeText={updateBaseAmount}
+          placeholder="0"
+          keyboardType="numeric"
+          returnKeyType="done"
+        />
+      )
+    },
+    //  {
     //   key: "routehints",
     //   title: `Route hints`,
     //   component: (
