@@ -98,6 +98,13 @@ export default function Drawer() {
             </>
           )}
 
+          <TouchableOpacity onPress={() => goToScreen("Swap")}>
+            <View style={style.menuItem}>
+              <Icon style={style.menuItemIcon} type="FontAwesome5" name="exchange-alt" />
+              <Text style={style.menuItemText}>Trustless Swap</Text>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity onPress={pasteFromClipboard}>
             <View style={style.menuItem}>
               <Icon style={style.menuItemIcon} type="FontAwesome5" name="paste" />

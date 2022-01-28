@@ -16,6 +16,7 @@ import Welcome from "./windows/Welcome";
 import LNURL from "./windows/LNURL";
 import KeysendTest from "./windows/Keysend/Test";
 import KeysendExperiment from "./windows/Keysend/Experiment";
+import Swap from "./windows/Swap";
 import GoogleDriveTestbed from "./windows/Google/GoogleDriveTestbed";
 import TransactionDetails from "./windows/TransactionDetails";
 import SyncInfo from "./windows/SyncInfo";
@@ -241,6 +242,7 @@ export default function Main() {
       <RootStack.Screen name="GoogleDriveTestbed" component={GoogleDriveTestbed} options={animationDisabled} />
       <RootStack.Screen name="KeysendTest" component={KeysendTest} options={animationDisabled} />
       <RootStack.Screen name="KeysendExperiment" component={KeysendExperiment} options={horizontalTransition} />
+      <RootStack.Screen name="Swap" component={Swap} options={horizontalTransition} />
       <RootStack.Screen name="DEV_CommandsX" component={DEV_Commands} options={animationDisabled} />
     </RootStack.Navigator>
   );
