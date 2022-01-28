@@ -45,6 +45,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [claimAddress, setClaimAddress] = useState("0x333b238f8ead1230686b32b23070ff4bfb006888");
 
   const decimals = new BigNumber('100000000');
+  const mardukApiUrl = `https://api.marduk.exchange:9001`;
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
   
   const name = useStoreState((store) => store.settings.name) || "";
@@ -185,7 +186,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // }
       setSending(true);
 
-      const createSwapUrl = `https://api.marduk.exchange:9001/createswap`;
+      const createSwapUrl = `${mardukApiUrl}/createswap`;
       const swapRequestBody = {
         "type": "reversesubmarine",
         "pairId": "BTC/XUSD",
@@ -262,7 +263,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   };
 
   const getPairs = async () => {
-    const getPairUrl = `https://api.marduk.exchange:9001/getpairs`;
+    const getPairUrl = `${mardukApiUrl}/getpairs`;
     const result = await fetch(getPairUrl);
     let btcxusdPairData = (await result.json())["pairs"]["BTC/XUSD"];
     btcxusdPairData.name = "BTC/XUSD"
