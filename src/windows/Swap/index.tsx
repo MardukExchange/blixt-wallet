@@ -18,27 +18,30 @@ import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { ITransaction } from "../../storage/database/transaction";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../../Main";
+import PairDataCard from "../../components/PairDataCard";
 
 interface ILightningInfoProps {
   navigation: StackNavigationProp<RootStackParamList, "KeysendExperiment">;
 }
-export default function KeysendTest({ navigation }: ILightningInfoProps) {
+export default function Swap({ navigation }: ILightningInfoProps) {
   const [sending, setSending] = useState(false);
   const myNodeInfo = useStoreState((store) => store.lightning.nodeInfo);
   const [routehints, setRoutehints] = useState("");
+  const [pairData, setPairdata] = useState({name: "", rate: 0, limits: {maximal: 0, minimal: 0}, fees: {percentage: 0}});
 
   const [pubkeyInput, setPubkeyInput] = useState("");
   const [routehintsInput, setRoutehintsInput] = useState("");
   const [satInput, setSatInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
 
-  const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
+  // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
 
   const name = useStoreState((store) => store.settings.name) || "";
 
   useEffect(() => {
     (async () => {
-      await getRouteHints();
+      // await getRouteHints();
+      await getPairs();
     })();
   }, []);
 
@@ -62,57 +65,57 @@ export default function KeysendTest({ navigation }: ILightningInfoProps) {
       if (!satInput) {
         throw new Error("Check amount");
       }
-      else if (!pubkeyInput) {
-        throw new Error("Missing pubkey");
-      }
+      // else if (!pubkeyInput) {
+      //   throw new Error("Missing pubkey");
+      // }
       setSending(true);
-      const result = await sendKeysendPaymentV2(
-        pubkeyInput,
-        Long.fromValue(Number.parseInt(satInput, 10)),
-        await generateSecureRandom(32),
-        JSON.parse(routehintsInput || "[]"),
-        name,
-        messageInput,
-      );
-      console.log(result);
-      toast("Payment successful");
-      console.log("Payment request is " + result.paymentRequest);
-      console.log(typeof result.paymentRequest);
+      // const result = await sendKeysendPaymentV2(
+      //   pubkeyInput,
+      //   Long.fromValue(Number.parseInt(satInput, 10)),
+      //   await generateSecureRandom(32),
+      //   JSON.parse(routehintsInput || "[]"),
+      //   name,
+      //   messageInput,
+      // );
+      // console.log(result);
+      // toast("Payment successful");
+      // console.log("Payment request is " + result.paymentRequest);
+      // console.log(typeof result.paymentRequest);
 
-      const transaction: ITransaction = {
-        date: result.creationDate,
-        description: "Keysend payment",
-        expire: Long.fromValue(0),
-        paymentRequest: result.paymentRequest,
-        remotePubkey: pubkeyInput,
-        rHash: result.paymentHash,
-        status: "SETTLED",
-        value: result.value.neg(),
-        valueMsat: result.valueMsat.neg().mul(1000),
-        amtPaidSat: result.value.neg(),
-        amtPaidMsat: result.valueMsat.neg().mul(1000),
-        fee: result.fee,
-        feeMsat: result.feeMsat,
-        nodeAliasCached: null,
-        payer: null,
-        valueUSD: 0,
-        valueFiat: 0,
-        valueFiatCurrency: "USD",
-        locationLong: null,
-        locationLat: null,
-        tlvRecordName: null,
-        type: "NORMAL",
-        website: null,
-        identifiedService: null,
-        lightningAddress: null,
-        lud16IdentifierMimeType: null,
+      // const transaction: ITransaction = {
+      //   date: result.creationDate,
+      //   description: "Keysend payment",
+      //   expire: Long.fromValue(0),
+      //   paymentRequest: result.paymentRequest,
+      //   remotePubkey: pubkeyInput,
+      //   rHash: result.paymentHash,
+      //   status: "SETTLED",
+      //   value: result.value.neg(),
+      //   valueMsat: result.valueMsat.neg().mul(1000),
+      //   amtPaidSat: result.value.neg(),
+      //   amtPaidMsat: result.valueMsat.neg().mul(1000),
+      //   fee: result.fee,
+      //   feeMsat: result.feeMsat,
+      //   nodeAliasCached: null,
+      //   payer: null,
+      //   valueUSD: 0,
+      //   valueFiat: 0,
+      //   valueFiatCurrency: "USD",
+      //   locationLong: null,
+      //   locationLat: null,
+      //   tlvRecordName: null,
+      //   type: "NORMAL",
+      //   website: null,
+      //   identifiedService: null,
+      //   lightningAddress: null,
+      //   lud16IdentifierMimeType: null,
 
-        preimage: hexToUint8Array(result.paymentPreimage),
-        lnurlPayResponse: null,
+      //   preimage: hexToUint8Array(result.paymentPreimage),
+      //   lnurlPayResponse: null,
 
-        hops: [],
-      };
-      syncTransaction(transaction);
+      //   hops: [],
+      // };
+      // syncTransaction(transaction);
 
     } catch (e) {
       toast(e.message, undefined, "danger");
@@ -120,45 +123,54 @@ export default function KeysendTest({ navigation }: ILightningInfoProps) {
     setSending(false);
   };
 
-  const getRouteHints = async () => {
-    const routeHints: lnrpc.IRouteHint[] = [];
-    const channels = await listPrivateChannels();
+  const getPairs = async () => {
+    const getPairUrl = `https://api.marduk.exchange:9001/getpairs`;
+    const result = await fetch(getPairUrl);
+    let btcxusdPairData = (await result.json())["pairs"]["BTC/XUSD"];
+    btcxusdPairData.name = "BTC/XUSD"
+    console.log('btcxusdPairData ', btcxusdPairData);
+    setPairdata(btcxusdPairData);
+  }
+  
+  // const getRouteHints = async () => {
+  //   const routeHints: lnrpc.IRouteHint[] = [];
+  //   const channels = await listPrivateChannels();
 
-    // Follows the code in `addInvoice()` of the lnd project
-    for (const channel of channels.channels) {
-      const chanInfo = await getChanInfo(channel.chanId!);
-      const remotePubkey = channel.remotePubkey;
-      console.log("chanInfo", chanInfo);
+  //   // Follows the code in `addInvoice()` of the lnd project
+  //   for (const channel of channels.channels) {
+  //     const chanInfo = await getChanInfo(channel.chanId!);
+  //     const remotePubkey = channel.remotePubkey;
+  //     console.log("chanInfo", chanInfo);
 
-      // TODO check if node is publicly
-      // advertised in the network graph
-      // https://github.com/lightningnetwork/lnd/blob/38b521d87d3fd9cff628e5dc09b764aeabaf011a/channeldb/graph.go#L2141
+  //     // TODO check if node is publicly
+  //     // advertised in the network graph
+  //     // https://github.com/lightningnetwork/lnd/blob/38b521d87d3fd9cff628e5dc09b764aeabaf011a/channeldb/graph.go#L2141
 
-      let policy: lnrpc.IRoutingPolicy;
-      if (remotePubkey === chanInfo.node1Pub) {
-        policy = chanInfo.node1Policy!;
-      }
-      else {
-        policy = chanInfo.node2Policy!;
-      }
+  //     let policy: lnrpc.IRoutingPolicy;
+  //     if (remotePubkey === chanInfo.node1Pub) {
+  //       policy = chanInfo.node1Policy!;
+  //     }
+  //     else {
+  //       policy = chanInfo.node2Policy!;
+  //     }
 
-      if (!policy) {
-        continue;
-      }
+  //     if (!policy) {
+  //       continue;
+  //     }
 
-      routeHints.push(lnrpc.RouteHint.create({
-        hopHints: [{
-          nodeId: remotePubkey,
-          chanId: chanInfo.channelId,
-          feeBaseMsat: policy.feeBaseMsat ? policy.feeBaseMsat.toNumber() : undefined,
-          feeProportionalMillionths: policy.feeRateMilliMsat ? policy.feeRateMilliMsat.toNumber() : undefined,
-          cltvExpiryDelta: policy.timeLockDelta,
-        }]
-      }));
-    }
+  //     routeHints.push(lnrpc.RouteHint.create({
+  //       hopHints: [{
+  //         nodeId: remotePubkey,
+  //         chanId: chanInfo.channelId,
+  //         feeBaseMsat: policy.feeBaseMsat ? policy.feeBaseMsat.toNumber() : undefined,
+  //         feeProportionalMillionths: policy.feeRateMilliMsat ? policy.feeRateMilliMsat.toNumber() : undefined,
+  //         cltvExpiryDelta: policy.timeLockDelta,
+  //       }]
+  //     }));
+  //   }
 
-    setRoutehints(JSON.stringify(routeHints));
-  };
+  //   setRoutehints(JSON.stringify(routeHints));
+  // };
 
   const onPressQr = () => {
     Clipboard.setString(JSON.stringify(routehints));
@@ -257,13 +269,14 @@ export default function KeysendTest({ navigation }: ILightningInfoProps) {
           Review rates and fees and enter an amount to start a trustless swap.
         </Text>
       </View>
+      <PairDataCard pairData={pairData} />
       <BlixtForm
         style={{ flexGrow: 1}}
         items={formItems}
         buttons={[
           <Button
             style={{ marginTop: 32 }}
-            testID="create-invoice"
+            testID="create-swap"
             primary={true}
             block={true}
             disabled={sending}
@@ -274,7 +287,7 @@ export default function KeysendTest({ navigation }: ILightningInfoProps) {
               <Spinner color={blixtTheme.light} />
             }
             {!sending &&
-              <Text>Send</Text>
+              <Text>Start</Text>
             }
           </Button>
         ]}
