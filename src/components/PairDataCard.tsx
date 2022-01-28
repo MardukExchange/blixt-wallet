@@ -18,6 +18,11 @@ export interface pairDataProps {
   }
   fees: {
     percentage: number;
+    minerFees: {
+      baseAsset: {
+        normal: number;
+      }
+    }
   }
 }
 
@@ -96,7 +101,7 @@ export const PairDataCard = ({ pairData, channel, type, alias }: IPairDataCardPr
               <Text style={style.channelDetailTitle}>Rate</Text>
             </Left>
             <Right>
-            <Text style={{ ...style.channelDetailValue, textAlign: "right" }}>{pairData.rate}</Text>
+            <Text style={{ ...style.channelDetailValue, textAlign: "right" }}>{Math.round(pairData.rate)}</Text>
             </Right>
           </Row>
           <Row style={style.fullWidth}>
@@ -105,6 +110,14 @@ export const PairDataCard = ({ pairData, channel, type, alias }: IPairDataCardPr
             </Left>
             <Right>
               <Text style={ style.channelDetailValue }>%{pairData.fees.percentage}</Text>
+            </Right>
+          </Row>
+          <Row style={style.fullWidth}>
+            <Left>
+              <Text style={style.channelDetailTitle}>Limits</Text>
+            </Left>
+            <Right>
+              <Text style={ style.channelDetailValue }>Max: {pairData.limits.maximal/10**8}{'\n'}Min: {pairData.limits.minimal/10**8}</Text>
             </Right>
           </Row>
           {/* {type === "OPEN" &&
