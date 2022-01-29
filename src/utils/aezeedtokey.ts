@@ -1,16 +1,20 @@
 import { ethers } from "ethers";
 // import * as bip39wordlist from "bip39wordlist";
-const crc32 = require('fast-crc32c');
+// const crc32 = require('fast-crc32c');
+// import crc from 'crc-react-native';
+var crc32c = require("crc-32/crc32c");
 const scrypt = require('scrypt-js');
+// const scrypt = require('scrypt-async');
 const aez = require('aez');
-const bip32utils = require('bip32-utils')
+// const bip32utils = require('bip32-utils')
 // import bitcoin from 'bitcoinjs-lib';
 const Buffer = require('safe-buffer').Buffer
 
 const AEZEED_DEFAULT_PASSPHRASE = 'aezeed',
   AEZEED_VERSION = 0,
   BITCOIN_GENESIS_BLOCK_TIMESTAMP = 1231006505,
-  SCRYPT_N = 32768,
+//   SCRYPT_N = 32768,
+  SCRYPT_N = 2048,
   SCRYPT_R = 8,
   SCRYPT_P = 1,
   SCRYPT_KEY_LENGTH = 32,
@@ -46,8 +50,9 @@ export function getPrivKeyfromAezeed(mnemonic: string): string | undefined {
       })
       .join('');
     const seedBytes = bits.match(/(.{1,8})/g)!.map(bin => parseInt(bin, 2));
+    console.log('getPrivKeyfromAezeed seedBytes ', seedBytes);
     decodeSeed(Buffer.from(seedBytes));
-    return;
+    // return;
 }
 
 function decodeSeed(seed: any) {
@@ -62,7 +67,13 @@ function decodeSeed(seed: any) {
     const cipherSeed = seed.slice(1, SALT_OFFSET);
     const checksum = seed.slice(CHECKSUM_OFFSET);
 
-    const newChecksum = crc32.calculate(seed.slice(0, CHECKSUM_OFFSET));
+    console.log('1decodeSeed checksum ', checksum);
+    const messageAsString = "ABCDEF";
+    const calcChecksum = crc32c.str(messageAsString);
+    console.log( { '2decodeSeed checksum': calcChecksum.toString("16") })
+
+    const newChecksum = crc32c.buf(seed.slice(0, CHECKSUM_OFFSET));
+    console.log('decodeSeed newChecksum ', newChecksum, checksum.readUInt32BE(0));
     if (newChecksum !== checksum.readUInt32BE(0)) {
         console.log('Invalid seed checksum!');
         return;
@@ -72,30 +83,44 @@ function decodeSeed(seed: any) {
       salt: salt.toString('hex'),
       entropy: 'please wait...'
     };
-    scrypt(password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_KEY_LENGTH).then((key: any) => {
-      if (key) {
-        const plainSeedBytes:any = aez.decrypt(key, null, [getAD(salt)], AEZ_TAU, cipherSeed);
-        if (plainSeedBytes == null) {
-            console.log('Decryption failed. Invalid passphrase?');
-            return;
-        } else {
-            const entropy = plainSeedBytes.slice(3).toString('hex');
-            const nodeBase58 = fromEntropy(entropy);
-            return {
-                version: plainSeedBytes.readUInt8(0),
-                birthday: plainSeedBytes.readUInt16BE(1),
-                entropy: entropy,
-                nodeBase58,
+    console.log('decodeSeed scrypt ', password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_KEY_LENGTH);
+    const key = scrypt.syncScrypt(password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_KEY_LENGTH);
+    // scrypt(password, salt, {N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, dkLen: SCRYPT_KEY_LENGTH, encoding: 'hex'}, function (derivedKey:any) {
+    //     console.log('decodeSeed derivedKey ', derivedKey);
+    // });
+    //     .then((key: any) => {
+    //         console.log('decodeSeed key?? ', key);
+        if (key) {
+            var kb = Buffer.from(key);
+            console.log('decodeSeed key ', key, kb);
+            const plainSeedBytes = aez.decrypt(kb, null, [getAD(salt)], AEZ_TAU, cipherSeed);
+            console.log('decodeSeed plainSeedBytes ', plainSeedBytes);
+            if (plainSeedBytes == null) {
+                console.log('Decryption failed. Invalid passphrase?');
+                return;
+            } else {
+                const entropy = plainSeedBytes.slice(3).toString('hex');
+                console.log('decodeSeed entropy ', entropy);
+                const nodeBase58 = fromEntropy(entropy);
+                return {
+                    version: plainSeedBytes.readUInt8(0),
+                    birthday: plainSeedBytes.readUInt16BE(1),
+                    entropy: entropy,
+                    nodeBase58,
+                }
             }
+        } else {
+            console.log('no key');
         }
-      }
-    });
+    // });
 };
 
 function fromEntropy (entropy: any) {
     // , bitcoin.networks.bitcoin // network needed?
-    const nodeBase58 = bip32utils.fromSeed(Buffer.from(entropy, 'hex')).toBase58();
+    // const nodeBase58 = bip32utils.fromSeed(Buffer.from(entropy, 'hex')).toBase58();
+    const nodeBase58 = ethers.utils.HDNode.fromSeed(Buffer.from(entropy, 'hex'));
     return nodeBase58;
+    // return "";
 };
 
 function getAD (salt: any) {
