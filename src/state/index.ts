@@ -163,6 +163,10 @@ export const model: IStoreModel = {
         throw new Error("Error creating DB: " + error.message)
       }
       log.i("Writing lnd.conf");
+      const bitcoindRpcHost = await getItemAsyncStorage(StorageItem.bitcoindRpcHost)
+      const bitcoindPubRawBlock = await getItemAsyncStorage(StorageItem.bitcoindPubRawBlock)
+      const bitcoibitcoindPubRawTxndRpcHost = await getItemAsyncStorage(StorageItem.bitcoindPubRawTx)
+      console.log('wrote lnd.conf ', bitcoindRpcHost, bitcoindPubRawBlock, bitcoibitcoindPubRawTxndRpcHost);
       await actions.writeConfig();
 
       if (PLATFORM === "web") {
@@ -537,6 +541,7 @@ function setupRegtest(
   changeBitcoindPubRawBlock: any,
   changeBitcoindPubRawTx: any
 ) {
+  console.log('setupRegtest ', bitcoindRpcHost, bitcoindPubRawBlock, bitcoindPubRawTx);
   return new Promise((resolve, reject) => {
     Alert.prompt(
       "Set bitcoind RPC host",

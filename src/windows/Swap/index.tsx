@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 
 import { sendKeysendPaymentV2 } from "../../lndmobile/index";
 import Long from "long";
-import { toast, hexToUint8Array, getHexString, uint8ArrayToString, getHexBuffer, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
+import { toast, hexToUint8Array, getHexString, uint8ArrayToString, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
 import { useStoreState, useStoreActions } from "../../state/store";
 import { generateSecureRandom } from "react-native-securerandom";
 import { lnrpc } from "../../../proto/lightning";
@@ -18,10 +18,17 @@ import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { ITransaction } from "../../storage/database/transaction";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../../Main";
-import PairDataCard from "../../components/PairDataCard";
-import BigNumber from "bignumber.js";
-import { crypto } from 'bitcoinjs-lib';
+import {PairDataCard} from "../../components/PairDataCard";
+import {BigNumber} from "bignumber.js";
+// import { crypto } from 'bitcoinjs-lib';
 import { getSeed } from "../../storage/keystore";
+import sha from "sha.js";
+import { ethers } from "ethers";
+import { getPrivKeyfromAezeed } from "../../utils/aezeedtokey";
+// import { defaultPath, HDNode, entropyToMnemonic, Mnemonic } from "@ethersproject/hdnode";
+// import * as bip39 from 'bip39';
+// import { generateMnemonic, mnemonicToSeedHex } from 'react-native-bip39'
+// if (typeof Buffer === 'undefined') global.Buffer = require('buffer').Buffer
 
 interface ILightningInfoProps {
   navigation: StackNavigationProp<RootStackParamList, "KeysendExperiment">;
@@ -56,15 +63,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       await getPairs();
 
       // doesnt work on web - dummy value
-      // const walletseed = await getSeed();
-      // console.log('walletseed ', walletseed);
+      await deriveAddress();
 
       // prepare preimage and hash for swap
       const generatedPreimageArray = await generateSecureRandom(32);
-      // const hash2 = sha("sha256").update(generatedPreimageArray).digest();
+      const preimageHash = sha("sha256").update(generatedPreimageArray).digest();
       const generatedPreimage = bytesToHexString(generatedPreimageArray);
       // console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
-      const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
+      // const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
       setPreimage(generatedPreimage);
       setPreimageHash(getHexString(preimageHash));
       console.log('got preimage, preimagehash: ', generatedPreimage, ' and ', getHexString(preimageHash));
@@ -86,19 +92,38 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     });
   }, [navigation]);
 
-  // const calcAmount = (value: string) => {
-  //   console.log('calcAmount, pairData.rate ', value, pairData.rate);
-  //   const btcxusdrate = pairData.rate;
-  //   console.log('xusdAmount ', value*pairData.rate/10**8);
-  //   setSatInput(value);
-  //   setXusdInput()
-  // }
+  const deriveAddress = async () => {
+    try {
+      console.log('deriveAddress start ');
+      const walletseed = await getSeed();
+      let walletmnemonic = walletseed!.join(" ");
+      console.log('deriveAddress walletmnemonic ', walletmnemonic);
 
-  // const randomBytes = (size: number) => {
-  //   const bytes = Buffer.allocUnsafe(size);
-  //   global.crypto.getRandomValues(bytes);
-  //   return bytes;
-  // };
+      const base58 = getPrivKeyfromAezeed(walletmnemonic);
+      console.log('deriveAddress base58 ', base58);
+      // const seed = bip39.mnemonicToSeedSync(mnemonic)
+      
+      // console.log('deriveAddress test ', mnemonicToSeedHex('praise you muffin lion enable neck grocery crumble super myself license ghost'));
+      // const node = bip32.fromSeed(seed);
+      // const strng = node.toBase58();
+      // const restored = bip32.fromBase58(strng);
+      // const wallet = ethers.Wallet.createRandom({ locale: ethers.wordlists.en });
+      // console.log('1mnemonicWallet ', wallet);
+
+      // works with bip39 seed - need aezeed -> bip39
+      // let hdNode = ethers.utils.HDNode.fromMnemonic(walletmnemonic);
+      // console.log('hdNode pubkey, privkey ', hdNode.publicKey, hdNode.privateKey);
+
+      // // test seed: 'praise you muffin lion enable neck grocery crumble super myself license ghost'
+      // // const firstAccount = hdNode.derivePath(`m/44'/60'/0'/0/0`); // eth derivation - 0x296E6b249637aF0E76a0215e5bb73A31bF80F64c
+      // const firstAccount = hdNode.derivePath(`m/44'/137'/0'/0/0`); // rsk mainnet derivation - 0x5156bC7Ee88C51442d6840B245d1a7aFC380E61A
+      // // const firstAccount = hdNode.derivePath(`m/44'/37310'/0'/0/0`); // rsk testnet derivation - 0x7BD483D5Da59BB917D06f410297c610bc0207A96
+      // console.log('hdNode firstAccount ', firstAccount);
+    } catch(err) {
+      console.log('deriveAddress err', err);
+    }
+
+  }
 
   const updateBaseAmount = (quoteAmount: string) => {
     const amount = new BigNumber(quoteAmount);

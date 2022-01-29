@@ -68,9 +68,9 @@ export const getHexString = (input: Buffer) => {
   return input.toString('hex');
 };
 
-export const getHexBuffer = (input: string) => {
-  return Buffer.from(input, 'hex');
-};
+// export const getHexBuffer = (input: string) => {
+//   return Buffer.from(input, 'hex');
+// };
 
 export const hexToUint8Array = (hexString: string) => {
   return new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
