@@ -24,7 +24,7 @@ import {BigNumber} from "bignumber.js";
 import { getSeed } from "../../storage/keystore";
 import sha from "sha.js";
 import { ethers } from "ethers";
-import { getPrivKeyfromAezeed } from "../../utils/aezeedtokey";
+import { getRskAccountfromAezeed } from "../../utils/aezeedtokey";
 // import { defaultPath, HDNode, entropyToMnemonic, Mnemonic } from "@ethersproject/hdnode";
 // import * as bip39 from 'bip39';
 // import { generateMnemonic, mnemonicToSeedHex } from 'react-native-bip39'
@@ -95,12 +95,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const deriveAddress = async () => {
     try {
       console.log('deriveAddress start ');
-      const walletseed = await getSeed();
-      let walletmnemonic = walletseed!.join(" ");
-      console.log('deriveAddress walletmnemonic ', walletmnemonic);
+      // const walletseed = await getSeed();
+      // let walletmnemonic = walletseed!.join(" ");
+      // console.log('deriveAddress walletmnemonic ', walletmnemonic);
 
-      const base58 = getPrivKeyfromAezeed(walletmnemonic);
-      console.log('deriveAddress base58 ', base58);
+      const dummymnemonic = "ability panic evil predict assume scheme chaos claw solid myself trip voice wagon sphere moral ice merit shoulder accuse leg coin alien burden diet";
+      const rskAccount = getRskAccountfromAezeed(dummymnemonic);
+      // const base58 = getPrivKeyfromAezeed(walletmnemonic);
+      console.log('deriveAddress base58 ', rskAccount);
       // const seed = bip39.mnemonicToSeedSync(mnemonic)
       
       // console.log('deriveAddress test ', mnemonicToSeedHex('praise you muffin lion enable neck grocery crumble super myself license ghost'));
