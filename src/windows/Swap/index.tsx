@@ -42,8 +42,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [routehints, setRoutehints] = useState("");
   const [pairData, setPairdata] = useState({name: "", rate: 0, limits: {maximal: 0, minimal: 0}, fees: {percentage: 0, minerFees: {baseAsset: {normal: 0}}}});
 
-  const [pubkeyInput, setPubkeyInput] = useState("");
-  const [routehintsInput, setRoutehintsInput] = useState("");
+  // const [pubkeyInput, setPubkeyInput] = useState("");
+  // const [routehintsInput, setRoutehintsInput] = useState("");
 
   const [baseInput, setBaseInput] = useState("");
   const [quoteInput, setQuoteInput] = useState("");
@@ -52,7 +52,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [preimage, setPreimage] = useState("");
   const [preimageHash, setPreimageHash] = useState("");
 
-  const [claimAddress, setClaimAddress] = useState("0x333b238f8ead1230686b32b23070ff4bfb006888");
+  const [claimAddress, setClaimAddress] = useState("");
   const [xusdBalance, setXusdBalance] = useState("");
 
   const decimals = new BigNumber('100000000');
@@ -79,6 +79,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if(!rskAddress && !rskPrivateKey) {
         await deriveAddress();
       } else {
+        setClaimAddress(rskAddress);
         await getRskBalance(rskAddress);
       }
       
@@ -130,6 +131,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if (userRskAccount.address && userRskAccount.privateKey) {
         await getRskBalance(userRskAccount.address);
 
+        setClaimAddress(userRskAccount.address);
         setRskAddress(userRskAccount.address);
         setRskPrivateKey(userRskAccount.privateKey);
       }
@@ -487,8 +489,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
             testID="create-swap"
             primary={true}
             block={true}
-            disabled={sending}
-            key="CREATE_INVOICE"
+            disabled={!pairData || sending}
+            key="CREATE_SWAP"
             onPress={onClickSend}
           >
             {sending &&
