@@ -28,8 +28,12 @@ const AEZEED_DEFAULT_PASSPHRASE = 'aezeed',
   CHECKSUM_OFFSET = ENCIPHERED_LENGTH - CHECKSUM_LENGTH,
   SALT_OFFSET = CHECKSUM_OFFSET - SALT_LENGTH;
 
+interface IRskAccount {
+    address: string;
+}
+
 export function getRskAccountfromAezeed(mnemonic: string): string | undefined {
-    console.log('getRskAccountfromAezeed mnemonic ', mnemonic);
+    // console.log('getRskAccountfromAezeed mnemonic ', mnemonic);
     const words = mnemonic.split(' ');
 
     if (words.length !== NUM_WORDS) {
@@ -51,14 +55,19 @@ export function getRskAccountfromAezeed(mnemonic: string): string | undefined {
       .join('');
     const seedBytes = bits.match(/(.{1,8})/g)!.map(bin => parseInt(bin, 2));
     // console.log('getRskAccountfromAezeed seedBytes ', seedBytes);
-    decodeSeed(Buffer.from(seedBytes));
+    const rskAccount = decodeSeed(Buffer.from(seedBytes));
+    if(rskAccount && rskAccount.nodeBase58) {
+        return rskAccount!.nodeBase58!.address;
+    } else {
+        return '';
+    }
     // return;
 }
 
 function decodeSeed(seed: any) {
     if (!seed || seed.length === 0 || seed[0] !== AEZEED_VERSION) {
       console.log('Invalid seed or version!');
-      return;
+      return {address: ''};
     }
 
     // console.log('decodeSeed seed ', seed);
@@ -73,7 +82,7 @@ function decodeSeed(seed: any) {
     // console.log('decodeSeed newChecksum ', newChecksum, checksum.readUInt32BE(0));
     if (newChecksum !== checksum.readUInt32BE(0)) {
         console.log('Invalid seed checksum!');
-        return;
+        return {address: ''};
     }
 
     const decoded = {
@@ -110,7 +119,7 @@ function decodeSeed(seed: any) {
                 const birthday = plainSeedBytes.readUInt16BE(1);
                 const entropy = plainSeedBytes.slice(3).toString('hex');
                 const nodeBase58 = fromEntropy(entropy);
-                console.log('decodeSeed version, birthday entropy, nodeBase58 ', version, birthday, entropy, saltHex, nodeBase58);
+                // console.log('decodeSeed version, birthday entropy, nodeBase58 ', version, birthday, entropy, saltHex, nodeBase58);
                 return {
                     version,
                     birthday,
@@ -130,7 +139,7 @@ function fromEntropy (entropy: any) {
     const hdNode = ethers.utils.HDNode.fromSeed(Buffer.from(entropy, 'hex'));
     // const rskTestNetAccount = hdNode.derivePath(`m/44'/37310'/0'/0/0`);
     const rskAccount = hdNode.derivePath(`m/44'/137'/0'/0/0`);
-    console.log('fromEntropy hdNode, rskAccount ', hdNode, rskAccount);
+    // console.log('fromEntropy hdNode, rskAccount ', hdNode, rskAccount);
     return rskAccount;
     // return "";
 };

@@ -25,6 +25,9 @@ import { getSeed } from "../../storage/keystore";
 import sha from "sha.js";
 import { ethers } from "ethers";
 import { getRskAccountfromAezeed } from "../../utils/aezeedtokey";
+const rskapi = require('rskapi');
+import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
+
 // import { defaultPath, HDNode, entropyToMnemonic, Mnemonic } from "@ethersproject/hdnode";
 // import * as bip39 from 'bip39';
 // import { generateMnemonic, mnemonicToSeedHex } from 'react-native-bip39'
@@ -50,12 +53,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [preimageHash, setPreimageHash] = useState("");
 
   const [claimAddress, setClaimAddress] = useState("0x333b238f8ead1230686b32b23070ff4bfb006888");
+  const [xusdBalance, setXusdBalance] = useState("");
 
   const decimals = new BigNumber('100000000');
   const mardukApiUrl = `https://api.marduk.exchange:9001`;
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
   
   const name = useStoreState((store) => store.settings.name) || "";
+  const balance = useStoreState((store) => store.channel.balance);
 
   useEffect(() => {
     (async () => {
@@ -74,6 +79,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       setPreimage(generatedPreimage);
       setPreimageHash(getHexString(preimageHash));
       console.log('got preimage, preimagehash: ', generatedPreimage, ' and ', getHexString(preimageHash));
+    
     })();
   }, []);
 
@@ -92,17 +98,28 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     });
   }, [navigation]);
 
+  const getRskBalance = async (userAccount: any) => {
+    const rskClient = rskapi.client('https://public-node.rsk.co:443')
+    const xusdBalanceHex = await rskClient.call(userAccount, "0xb5999795BE0eBb5BAb23144Aa5fD6a02d080299f", "balanceOf(address)", [userAccount], '');
+    // console.log('getRskBalance xusdBalanceHex ', xusdBalanceHex);
+    setXusdBalance((parseInt(xusdBalanceHex,16)/10**18).toFixed(2) + ' xUSD');
+  }
   const deriveAddress = async () => {
     try {
-      console.log('deriveAddress start ');
       // const walletseed = await getSeed();
       // let walletmnemonic = walletseed!.join(" ");
       // console.log('deriveAddress walletmnemonic ', walletmnemonic);
 
       const dummymnemonic = "ability panic evil predict assume scheme chaos claw solid myself trip voice wagon sphere moral ice merit shoulder accuse leg coin alien burden diet";
-      const rskAccount = getRskAccountfromAezeed(dummymnemonic);
+      const userRskAddress = getRskAccountfromAezeed(dummymnemonic);
       // const base58 = getPrivKeyfromAezeed(walletmnemonic);
-      console.log('deriveAddress base58 ', rskAccount);
+      console.log('deriveAddress base58 ', userRskAddress);
+
+      if (userRskAddress) {
+        await getRskBalance(userRskAddress);
+      }
+      
+
       // const seed = bip39.mnemonicToSeedSync(mnemonic)
       
       // console.log('deriveAddress test ', mnemonicToSeedHex('praise you muffin lion enable neck grocery crumble super myself license ghost'));
@@ -411,11 +428,18 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     // },
   ];
 
+  
+
+  const bitcoinBalance = formatBitcoin(balance, "satoshi", false);
+  // console.log('bitcoinBalance ', bitcoinBalance);
+
   return (
     <KeyboardAwareScrollView style={{ flex: 1, backgroundColor: blixtTheme.dark }}>
       <View style={{ alignItems: "center" }}>
-        <H1 style={{ marginTop: 10, marginBottom: 5 }}>Swap to xUSD</H1>
-        {routehints.length > 0  &&
+        <H1 style={{ marginTop: 10, marginBottom: 5 }}>Swap BTC {'<->'} xUSD</H1>
+        <p style={{color: "whitesmoke"}}>Lightning Balance: {bitcoinBalance}</p>
+        <p style={{color: "whitesmoke"}}>xUSD Balance: {xusdBalance}</p>
+        {/* {routehints.length > 0  &&
           <QrCode
             onPress={onPressQr}
             size={220}
@@ -427,7 +451,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         }
         {routehints.length === 0 &&
           <View style={{ margin: 4, width: 220 + 26, height: 220 + 26 }}></View>
-        }
+        } */}
       </View>
       <View style={{ padding: 16 }}>
         <Text style={{ marginBottom: 8 }}>

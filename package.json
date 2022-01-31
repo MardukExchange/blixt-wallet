@@ -127,6 +127,7 @@
     "react-native-webln": "0.1.11",
     "react-native-webview": "^11.16.0",
     "remote-redux-devtools": "^0.5.16",
+    "rskapi": "^0.0.20",
     "safe-buffer": "^5.2.1",
     "scrypt-async": "^2.0.1",
     "scrypt-js": "^3.0.1",
