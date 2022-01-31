@@ -77,6 +77,8 @@ export interface ISettingsModel {
   setDunderEnabled: Action<ISettingsModel, boolean>;
   setLndNoGraphCache: Action<ISettingsModel, boolean>;
   setInvoiceExpiry: Action<ISettingsModel, number>;
+  setRskAddress: Action<ISettingsModel, string>;
+  setRskPrivateKey: Action<ISettingsModel, string>;
 
   bitcoinUnit: keyof IBitcoinUnits;
   fiatUnit: keyof IFiatRates;
@@ -106,6 +108,8 @@ export interface ISettingsModel {
   dunderEnabled: boolean;
   lndNoGraphCache: boolean;
   invoiceExpiry: number;
+  rskAddress: string;
+  rskPrivateKey: string;
 }
 
 export const settings: ISettingsModel = {
@@ -139,6 +143,8 @@ export const settings: ISettingsModel = {
     actions.setDunderEnabled(await getItemObject(StorageItem.dunderEnabled) ?? false);
     actions.setLndNoGraphCache(await getItemObject(StorageItem.lndNoGraphCache) ?? false);
     actions.setInvoiceExpiry(await getItemObject(StorageItem.invoiceExpiry) ?? DEFAULT_INVOICE_EXPIRY);
+    actions.setRskAddress(await getItemObject(StorageItem.rskAddress) || "");
+    actions.setRskPrivateKey(await getItemObject(StorageItem.rskPrivateKey) || "");
 
     log.d("Done");
   }),
@@ -314,7 +320,9 @@ export const settings: ISettingsModel = {
   setDunderEnabled: action((state, payload) => { state.dunderEnabled = payload; }),
   setLndNoGraphCache: action((state, payload) => { state.lndNoGraphCache = payload; }),
   setInvoiceExpiry: action((state, payload) => { state.invoiceExpiry = payload; }),
-
+  setRskAddress: action((state, payload) => { state.rskAddress = payload; }),
+  setRskPrivateKey: action((state, payload) => { state.rskPrivateKey = payload; }),
+  
   bitcoinUnit: "bitcoin",
   fiatUnit: "USD",
   name: null,
@@ -343,4 +351,6 @@ export const settings: ISettingsModel = {
   dunderEnabled: false,
   lndNoGraphCache: false,
   invoiceExpiry: DEFAULT_INVOICE_EXPIRY,
+  rskAddress: "",
+  rskPrivateKey: "",
 };

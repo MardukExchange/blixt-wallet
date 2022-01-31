@@ -39,3 +39,9 @@ export const removePin = async () => removeItem("pin");
 
 export const setWalletPassword = async (password: string) => setItem("password", password, Keychain.ACCESSIBLE.ALWAYS);
 export const getWalletPassword = async (): Promise<string | null> => getItem("password");
+
+export const setRskAddress = async (rskaddress: string) => setItem("rskaddress", rskaddress);
+export const getRskAddress = async () => getItem("rskaddress");
+
+export const setRskPrivateKey = async (rskprivkey: string) => setItem("rskprivkey", rskprivkey);
+export const getRskPrivateKey = async () => getItem("rskprivkey");

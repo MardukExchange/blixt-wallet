@@ -58,6 +58,8 @@ export enum StorageItem { // const enums not supported in Babel 7...
   dunderEnabled = "dunderEnabled",
   lndNoGraphCache = "lndNoGraphCache",
   invoiceExpiry = "invoiceExpiry", // in seconds
+  rskPrivateKey = "rskPrivateKey",
+  rskAddress = "rskAddress",
 }
 
 export const setItem = async (key: StorageItem, value: string) => await AsyncStorage.setItem(key, value);
@@ -131,6 +133,8 @@ export const clearApp = async () => {
     removeItem(StorageItem.dunderEnabled),
     removeItem(StorageItem.lndNoGraphCache),
     removeItem(StorageItem.invoiceExpiry),
+    removeItem(StorageItem.rskAddress),
+    removeItem(StorageItem.rskPrivateKey),
   ]);
 };
 
@@ -204,5 +208,7 @@ export const setupApp = async () => {
     setItemObject<boolean>(StorageItem.dunderEnabled, false),
     setItemObject<boolean>(StorageItem.lndNoGraphCache, false),
     setItemObject<number>(StorageItem.lndNoGraphCache, DEFAULT_INVOICE_EXPIRY),
+    setItemObject<string>(StorageItem.rskAddress, ''),
+    setItemObject<string>(StorageItem.rskPrivateKey, ''),
   ]);
 };

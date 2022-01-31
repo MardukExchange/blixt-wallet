@@ -30,21 +30,22 @@ const AEZEED_DEFAULT_PASSPHRASE = 'aezeed',
 
 interface IRskAccount {
     address: string;
+    privateKey: string;
 }
 
-export function getRskAccountfromAezeed(mnemonic: string): string | undefined {
+export function getRskAccountfromAezeed(mnemonic: string): IRskAccount {
     // console.log('getRskAccountfromAezeed mnemonic ', mnemonic);
     const words = mnemonic.split(' ');
 
     if (words.length !== NUM_WORDS) {
         console.log('Must be 24 words!');
-        return;
+        return {address: '', privateKey: ''};
     }
 
     const belongToList = words.every(word => ethers.wordlists.en.getWordIndex(word) > -1);
     if (!belongToList) {
         console.log('Some words are not in the wordlist!');
-        return;
+        return {address: '', privateKey: ''};
     }
 
     const bits = words
@@ -57,9 +58,12 @@ export function getRskAccountfromAezeed(mnemonic: string): string | undefined {
     // console.log('getRskAccountfromAezeed seedBytes ', seedBytes);
     const rskAccount = decodeSeed(Buffer.from(seedBytes));
     if(rskAccount && rskAccount.nodeBase58) {
-        return rskAccount!.nodeBase58!.address;
+        return {
+            address: rskAccount!.nodeBase58!.address,
+            privateKey: rskAccount!.nodeBase58!.privateKey,
+        };
     } else {
-        return '';
+        return {address: '', privateKey: ''};
     }
     // return;
 }

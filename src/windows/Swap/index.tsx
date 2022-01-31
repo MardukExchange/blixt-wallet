@@ -62,14 +62,26 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const name = useStoreState((store) => store.settings.name) || "";
   const balance = useStoreState((store) => store.channel.balance);
 
+  // set/get rsk data from storage - use settings for now.
+  const rskAddress = useStoreState((store) => store.settings.rskAddress) || "";
+  const setRskAddress = useStoreActions((store) => store.settings.setRskAddress);
+  const rskPrivateKey = useStoreState((store) => store.settings.rskPrivateKey) || "";
+  const setRskPrivateKey = useStoreActions((store) => store.settings.setRskPrivateKey);
+  // console.log('swap rskAddress, rskPrivateKey ', rskAddress, rskPrivateKey);
+
   useEffect(() => {
     (async () => {
       // await getRouteHints();
       await getPairs();
 
       // doesnt work on web - dummy value
-      await deriveAddress();
-
+      // TODO: do this only if this users rskAccount data is not in storage already
+      if(!rskAddress && !rskPrivateKey) {
+        await deriveAddress();
+      } else {
+        await getRskBalance(rskAddress);
+      }
+      
       // prepare preimage and hash for swap
       const generatedPreimageArray = await generateSecureRandom(32);
       const preimageHash = sha("sha256").update(generatedPreimageArray).digest();
@@ -111,12 +123,15 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // console.log('deriveAddress walletmnemonic ', walletmnemonic);
 
       const dummymnemonic = "ability panic evil predict assume scheme chaos claw solid myself trip voice wagon sphere moral ice merit shoulder accuse leg coin alien burden diet";
-      const userRskAddress = getRskAccountfromAezeed(dummymnemonic);
+      const userRskAccount = getRskAccountfromAezeed(dummymnemonic);
       // const base58 = getPrivKeyfromAezeed(walletmnemonic);
-      console.log('deriveAddress base58 ', userRskAddress);
+      // console.log('deriveAddress userRskAccount ', userRskAccount);
 
-      if (userRskAddress) {
-        await getRskBalance(userRskAddress);
+      if (userRskAccount.address && userRskAccount.privateKey) {
+        await getRskBalance(userRskAccount.address);
+
+        setRskAddress(userRskAccount.address);
+        setRskPrivateKey(userRskAccount.privateKey);
       }
       
 
