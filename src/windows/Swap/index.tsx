@@ -21,11 +21,43 @@ import { RootStackParamList } from "../../Main";
 import {PairDataCard} from "../../components/PairDataCard";
 import {BigNumber} from "bignumber.js";
 // import { crypto } from 'bitcoinjs-lib';
-import { getSeed } from "../../storage/keystore";
+// import { getSeed } from "../../storage/keystore";
 import sha from "sha.js";
 import { ethers } from "ethers";
 import { getRskAccountfromAezeed } from "../../utils/aezeedtokey";
-const rskapi = require('rskapi');
+
+
+// this doesnt play nice on android - using web3 directly
+// const rskapi = require('rskapi');
+// import rskapi from 'rskapi';
+// const Web3 = require('web3');
+// import Web3 from 'web3';
+// const web3 = new Web3('https://public-node.rsk.co');
+const rskUrl = 'https://public-node.rsk.co';
+const xUSDTokenAddress = "0xb5999795BE0eBb5BAb23144Aa5fD6a02d080299f";
+// The minimum ABI to get ERC20 Token balance
+let minABI = [
+  // balanceOf
+  {
+    "constant":true,
+    "inputs":[{"name":"_owner","type":"address"}],
+    "name":"balanceOf",
+    "outputs":[{"name":"balance","type":"uint256"}],
+    "type":"function"
+  },
+  // decimals
+  {
+    "constant":true,
+    "inputs":[],
+    "name":"decimals",
+    "outputs":[{"name":"","type":"uint8"}],
+    "type":"function"
+  }
+];
+
+// let xUSDContract = new web3.eth.Contract(minABI,xUSDTokenAddress);
+
+
 import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
 
 // import { defaultPath, HDNode, entropyToMnemonic, Mnemonic } from "@ethersproject/hdnode";
@@ -38,7 +70,7 @@ interface ILightningInfoProps {
 }
 export default function Swap({ navigation }: ILightningInfoProps) {
   const [sending, setSending] = useState(false);
-  const myNodeInfo = useStoreState((store) => store.lightning.nodeInfo);
+  const myNodeInfo = useStoreState((store: any) => store.lightning.nodeInfo);
   const [routehints, setRoutehints] = useState("");
   const [pairData, setPairdata] = useState({name: "", rate: 0, limits: {maximal: 0, minimal: 0}, fees: {percentage: 0, minerFees: {baseAsset: {normal: 0}}}});
 
@@ -59,14 +91,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const mardukApiUrl = `https://api.marduk.exchange:9001`;
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
   
-  const name = useStoreState((store) => store.settings.name) || "";
-  const balance = useStoreState((store) => store.channel.balance);
+  const name = useStoreState((store: { settings: { name: any; }; }) => store.settings.name) || "";
+  const balance = useStoreState((store: { channel: { balance: any; }; }) => store.channel.balance) || "";
 
   // set/get rsk data from storage - use settings for now.
-  const rskAddress = useStoreState((store) => store.settings.rskAddress) || "";
-  const setRskAddress = useStoreActions((store) => store.settings.setRskAddress);
-  const rskPrivateKey = useStoreState((store) => store.settings.rskPrivateKey) || "";
-  const setRskPrivateKey = useStoreActions((store) => store.settings.setRskPrivateKey);
+  const rskAddress = useStoreState((store: { settings: { rskAddress: any; }; }) => store.settings.rskAddress) || "";
+  const setRskAddress = useStoreActions((store: { settings: { setRskAddress: any; }; }) => store.settings.setRskAddress);
+  const rskPrivateKey = useStoreState((store: { settings: { rskPrivateKey: any; }; }) => store.settings.rskPrivateKey) || "";
+  const setRskPrivateKey = useStoreActions((store: { settings: { setRskPrivateKey: any; }; }) => store.settings.setRskPrivateKey);
   // console.log('swap rskAddress, rskPrivateKey ', rskAddress, rskPrivateKey);
 
   useEffect(() => {
@@ -79,6 +111,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if(!rskAddress && !rskPrivateKey) {
         await deriveAddress();
       } else {
+        console.log('there is already rsk address in store ', rskAddress);
         setClaimAddress(rskAddress);
         await getRskBalance(rskAddress);
       }
@@ -87,7 +120,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       const generatedPreimageArray = await generateSecureRandom(32);
       const preimageHash = sha("sha256").update(generatedPreimageArray).digest();
       const generatedPreimage = bytesToHexString(generatedPreimageArray);
-      // console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
+      console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
       // const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
       setPreimage(generatedPreimage);
       setPreimageHash(getHexString(preimageHash));
@@ -112,13 +145,24 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   }, [navigation]);
 
   const getRskBalance = async (userAccount: any) => {
-    const rskClient = rskapi.client('https://public-node.rsk.co:443')
-    const xusdBalanceHex = await rskClient.call(userAccount, "0xb5999795BE0eBb5BAb23144Aa5fD6a02d080299f", "balanceOf(address)", [userAccount], '');
+    // const rskClient = rskapi.client('https://public-node.rsk.co:443')
+    // const xusdBalanceHex = await rskClient.call(userAccount, "0xb5999795BE0eBb5BAb23144Aa5fD6a02d080299f", "balanceOf(address)", [userAccount], '');
     // console.log('getRskBalance xusdBalanceHex ', xusdBalanceHex);
-    setXusdBalance((parseInt(xusdBalanceHex,16)/10**18).toFixed(2) + ' xUSD');
+
+    // const xusdBalance = await xUSDContract.methods.balanceOf(userAccount);
+    // console.log('getRskBalance xusdBalance ', xusdBalance);
+
+    const customHttpProvider = new ethers.providers.JsonRpcProvider(rskUrl);
+    // const provider = ...; (use ethers.providers.InfuraProvider for a Node app or ethers.providers.Web3Provider(window.ethereum/window.web3) for a React app)
+    const contract = new ethers.Contract(xUSDTokenAddress, minABI, customHttpProvider);
+    const balance = await contract.balanceOf(userAccount.toLowerCase());
+    console.log('getRskBalance xusdBalance ', balance);
+
+    // setXusdBalance((parseInt(xusdBalanceHex,16)/10**18).toFixed(2) + ' xUSD');
   }
   const deriveAddress = async () => {
     try {
+      console.log('deriveAddress - means there was no rsk address in store');
       // const walletseed = await getSeed();
       // let walletmnemonic = walletseed!.join(" ");
       // console.log('deriveAddress walletmnemonic ', walletmnemonic);
@@ -126,13 +170,13 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       const dummymnemonic = "ability panic evil predict assume scheme chaos claw solid myself trip voice wagon sphere moral ice merit shoulder accuse leg coin alien burden diet";
       const userRskAccount = getRskAccountfromAezeed(dummymnemonic);
       // const base58 = getPrivKeyfromAezeed(walletmnemonic);
-      // console.log('deriveAddress userRskAccount ', userRskAccount);
+      console.log('deriveAddress userRskAccount ', userRskAccount);
 
       if (userRskAccount.address && userRskAccount.privateKey) {
-        await getRskBalance(userRskAccount.address);
+        await getRskBalance(userRskAccount.address.toLowerCase());
 
-        setClaimAddress(userRskAccount.address);
-        setRskAddress(userRskAccount.address);
+        setClaimAddress(userRskAccount.address.toLowerCase());
+        setRskAddress(userRskAccount.address.toLowerCase());
         setRskPrivateKey(userRskAccount.privateKey);
       }
       
@@ -448,27 +492,14 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   
 
   const bitcoinBalance = formatBitcoin(balance, "satoshi", false);
-  // console.log('bitcoinBalance ', bitcoinBalance);
+  console.log('bitcoinBalance ', bitcoinBalance);
 
   return (
     <KeyboardAwareScrollView style={{ flex: 1, backgroundColor: blixtTheme.dark }}>
       <View style={{ alignItems: "center" }}>
         <H1 style={{ marginTop: 10, marginBottom: 5 }}>Swap BTC {'<->'} xUSD</H1>
-        <p style={{color: "whitesmoke"}}>Lightning Balance: {bitcoinBalance}</p>
-        <p style={{color: "whitesmoke"}}>xUSD Balance: {xusdBalance}</p>
-        {/* {routehints.length > 0  &&
-          <QrCode
-            onPress={onPressQr}
-            size={220}
-            data={JSON.stringify({
-              pubkey: myNodeInfo!.identityPubkey,
-              routehints,
-            })}
-          />
-        }
-        {routehints.length === 0 &&
-          <View style={{ margin: 4, width: 220 + 26, height: 220 + 26 }}></View>
-        } */}
+        {/* <p style={{color: "whitesmoke"}}>Lightning Balance: {bitcoinBalance}</p>
+        <p style={{color: "whitesmoke"}}>xUSD Balance: {xusdBalance}</p> */}
       </View>
       <View style={{ padding: 16 }}>
         <Text style={{ marginBottom: 8 }}>

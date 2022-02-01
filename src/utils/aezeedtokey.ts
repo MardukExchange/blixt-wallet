@@ -34,7 +34,7 @@ interface IRskAccount {
 }
 
 export function getRskAccountfromAezeed(mnemonic: string): IRskAccount {
-    // console.log('getRskAccountfromAezeed mnemonic ', mnemonic);
+    console.log('getRskAccountfromAezeed mnemonic ', mnemonic);
     const words = mnemonic.split(' ');
 
     if (words.length !== NUM_WORDS) {

@@ -27,21 +27,16 @@ export interface pairDataProps {
 }
 
 export interface IPairDataCardProps {
-  type?: "OPEN" | "CLOSING" | "FORCE_CLOSING" | "WAITING_CLOSE";
-  channel?: lnrpc.PendingChannelsResponse.IPendingOpenChannel
-            | lnrpc.PendingChannelsResponse.IClosedChannel
-            | lnrpc.PendingChannelsResponse.IForceClosedChannel
-            | lnrpc.PendingChannelsResponse.IWaitingCloseChannel;
-  alias?: string;
   pairData: pairDataProps;
 }
-export const PairDataCard = ({ pairData, channel, type, alias }: IPairDataCardProps) => {
+export const PairDataCard = ({ pairData }: IPairDataCardProps) => {
   const abandonChannel = useStoreActions((store) => store.channel.abandonChannel);
   const getChannels = useStoreActions((store) => store.channel.getChannels);
   const onchainExplorer = useStoreState((store) => store.settings.onchainExplorer);
 
+  console.log('PairDataCard pairData ', pairData, pairData.rate, !pairData.rate);
   if (!pairData.rate) {
-    return (<Text>Error</Text>);
+    return (<Text>Error: Could not get rates...</Text>);
   }
 
   // const abandon = async () => {

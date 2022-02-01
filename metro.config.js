@@ -14,4 +14,9 @@ module.exports = {
       },
     }),
   },
+  resolver: {
+    extraNodeModules: {
+      crypto: './node_modules/crypto-js',
+    },
+  }
 };
