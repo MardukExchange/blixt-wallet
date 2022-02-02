@@ -38,6 +38,7 @@
     "@babel/core": "^7.16.5",
     "@babel/preset-typescript": "^7.16.5",
     "@babel/runtime": "^7.16.5",
+    "@ethersproject/shims": "^5.5.0",
     "@ethersproject/transactions": "^5.5.0",
     "@ethersproject/wallet": "^5.5.0",
     "@react-native-community/async-storage": "1.12.1",
