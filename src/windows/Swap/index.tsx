@@ -112,7 +112,6 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // await getRouteHints();
       await getPairs();
 
-      await getRskBalance("0x4f3B4f618B9b23CCc33BEB6352Df2f93F082CAD4");
       // doesnt work on web - dummy value
       // TODO: do this only if this users rskAccount data is not in storage already
       if(!rskAddress && !rskPrivateKey) {

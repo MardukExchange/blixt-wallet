@@ -36,7 +36,7 @@ export const PairDataCard = ({ pairData }: IPairDataCardProps) => {
 
   console.log('PairDataCard pairData ', pairData, pairData.rate, !pairData.rate);
   if (!pairData.rate) {
-    return (<Text>Error: Could not get rates...</Text>);
+    return (<Text>Getting swap rates...</Text>);
   }
 
   // const abandon = async () => {
