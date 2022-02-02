@@ -34,7 +34,7 @@ export const PairDataCard = ({ pairData }: IPairDataCardProps) => {
   const getChannels = useStoreActions((store) => store.channel.getChannels);
   const onchainExplorer = useStoreState((store) => store.settings.onchainExplorer);
 
-  console.log('PairDataCard pairData ', pairData, pairData.rate, !pairData.rate);
+  // console.log('PairDataCard pairData ', pairData, pairData.rate, !pairData.rate);
   if (!pairData.rate) {
     return (<Text>Getting swap rates...</Text>);
   }

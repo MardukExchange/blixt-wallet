@@ -91,7 +91,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [preimageHash, setPreimageHash] = useState("");
 
   const [claimAddress, setClaimAddress] = useState("");
-  const [xusdBalance, setXusdBalance] = useState("0 xUSD");
+  const [xusdBalance, setXusdBalance] = useState("0.00 xUSD");
 
   const decimals = new BigNumber('100000000');
   const mardukApiUrl = `https://api.marduk.exchange:9001`;
@@ -173,7 +173,10 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // {"hex": "0x1b845ed858c729e104", "type": "BigNumber"}
       console.log('getRskBalance xusdBalance ', balance);
   
-      setXusdBalance((parseInt(balance.hex,16)/10**18).toFixed(2) + ' xUSD');
+      if(balance.hex) {
+        setXusdBalance((parseInt(balance.hex,16)/10**18).toFixed(2) + ' xUSD');
+      }
+      
     } catch (error) {
       console.log('getRskBalance error ', error.message);
     }
@@ -316,9 +319,10 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         "pairId": "BTC/XUSD",
         "invoiceAmount": parseFloat(baseInput),
         "orderSide": "sell",
-        "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
+        // "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
         claimAddress,
         preimageHash,
+        prepayMinerFee: true,
       }
       console.log('swapRequestBody ', swapRequestBody);
       const result = await fetch(createSwapUrl, {
