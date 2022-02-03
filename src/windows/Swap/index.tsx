@@ -4,7 +4,7 @@ import { View } from "react-native";
 import Clipboard from "@react-native-community/clipboard";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
-import { sendKeysendPaymentV2 } from "../../lndmobile/index";
+import { sendPaymentV2Sync } from "../../lndmobile/index";
 import Long from "long";
 import { toast, hexToUint8Array, getHexString, uint8ArrayToString, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
 import { useStoreState, useStoreActions } from "../../state/store";
@@ -32,6 +32,8 @@ const {
   Networkish
 } = require("@ethersproject/networks");
 import "@ethersproject/shims";
+import { erc20swapABI, minABI } from "./abi";
+import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
 
 // this doesnt play nice on android - using web3 directly
 // const rskapi = require('rskapi');
@@ -39,32 +41,26 @@ import "@ethersproject/shims";
 // const Web3 = require('web3');
 // import Web3 from 'web3';
 // const web3 = new Web3('https://public-node.rsk.co');
-const rskUrl = 'https://public-node.rsk.co';
-const xUSDTokenAddress = "0xb5999795be0ebb5bab23144aa5fd6a02d080299f";
-// The minimum ABI to get ERC20 Token balance
-let minABI = [
-  // balanceOf
-  {
-    "constant":true,
-    "inputs":[{"name":"_owner","type":"address"}],
-    "name":"balanceOf",
-    "outputs":[{"name":"balance","type":"uint256"}],
-    "type":"function"
-  },
-  // decimals
-  {
-    "constant":true,
-    "inputs":[],
-    "name":"decimals",
-    "outputs":[{"name":"","type":"uint8"}],
-    "type":"function"
-  }
-];
-const rskRpcProvider = new ethers.providers.JsonRpcProvider(rskUrl, 30);
+
+
+// mainnet
+// const rskUrl = 'https://public-node.rsk.co';
+// const chainId = 30;
+// const xUSDTokenAddress = "0xb5999795be0ebb5bab23144aa5fd6a02d080299f";
+// const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
+
+// regtest
+const rskUrl = 'http://192.168.0.143:4444';
+const chainId = 33;
+const xUSDTokenAddress = "0x59014d3017a5ad194d6b8a82a34b5b43beca72f7";
+const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
+
+// rsk chainid: mainnet=30, testnet=31, regtest=33
+const rskRpcProvider = new ethers.providers.JsonRpcProvider(rskUrl, chainId);
 const xUSDContract = new ethers.Contract(xUSDTokenAddress, minABI, rskRpcProvider);
 // let xUSDContract = new web3.eth.Contract(minABI,xUSDTokenAddress);
+const erc20SwapContract = new ethers.Contract(erc20SwapAddress, erc20swapABI, rskRpcProvider);
 
-import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
 
 // import { defaultPath, HDNode, entropyToMnemonic, Mnemonic } from "@ethersproject/hdnode";
 // import * as bip39 from 'bip39';
@@ -335,6 +331,34 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       });
       let swapResponse = await result.json();
       console.log('swapResponse ', swapResponse);
+
+      // start listening to swap
+      const swapStatusUrl = `${mardukApiUrl}/swapstatus`;
+      const interval = setInterval(async () => {
+        const result2 = await fetch(swapStatusUrl, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({id: swapResponse.id}),
+        });
+        const swapStatus = await result2.json();
+        if(swapStatus.status === 'transaction.confirmed') {
+          // claim xUSD
+          const claimResult = await erc20SwapContract.claim(preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddres, swapResponse.timeoutBlockHeight);
+          console.log('claimResult ', claimResult);
+        }
+      }, 1000);
+      
+      // pay miner invoice
+      const minerFeeResponse = await sendPaymentV2Sync(swapResponse.minerFeeInvoice);
+      console.log('minerFeeResponse ', minerFeeResponse);
+
+      // pay swap hold invoice
+      const invoiceResponse = await sendPaymentV2Sync(swapResponse.invoice);
+      console.log('invoiceResponse ', invoiceResponse);
+      
 
       // const result = await sendKeysendPaymentV2(
       //   pubkeyInput,

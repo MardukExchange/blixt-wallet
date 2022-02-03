@@ -154,16 +154,18 @@ export const setupApp = async () => {
   let bitcoindPubRawBlock = "";
   let bitcoindPubRawTx = "";
   if (Chain === "regtest") {
+    console.log('chain is regtest setting to gitpod values');
     lndChainBackend = "bitcoindWithZmq";
     // bitcoindRpcHost = "192.168.1.113:18443";
     // bitcoindRpcUser = "polaruser";
     // bitcoindRpcPass = "polarpass";
     // bitcoindPubRawBlock = "192.168.1.113:28334";
     // bitcoindPubRawTx = "192.168.1.113:29335";
+    
     // added for gitpod regtest container
     bitcoindRpcHost = "192.168.0.143:18443"; 
-    bitcoindRpcUser = "__cookie__";
-    bitcoindRpcPass = "337aee5f849ddc5b302bbd973472d4598ef28d794a5cfede051de9bf440d3b24root@44bbf656e9df";
+    bitcoindRpcUser = "topkek";
+    bitcoindRpcPass = "topkek";
     bitcoindPubRawBlock = "192.168.0.143:29001";
     bitcoindPubRawTx = "192.168.0.143:29000";
   }
