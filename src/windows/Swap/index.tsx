@@ -23,7 +23,7 @@ import {BigNumber} from "bignumber.js";
 // import { crypto } from 'bitcoinjs-lib';
 import { getSeed } from "../../storage/keystore";
 import sha from "sha.js";
-import { ethers } from "ethers";
+import { ethers, BigNumber as BN } from "ethers";
 import { getRskAccountfromAezeed } from "../../utils/aezeedtokey";
 const {
   getNetwork,
@@ -53,7 +53,8 @@ const log = logger("Swap");
 // const mardukApiUrl = `https://api.marduk.exchange:9001`;
 
 // regtest
-const rskUrl = 'http://192.168.0.143:4444';
+// const rskUrl = 'http://192.168.0.143:4444';
+const rskUrl = 'https://4444-pseudozach-lnsovbridge-u3b2cf9cjdk.ws-us30.gitpod.io/';
 const chainId = 33;
 const xUSDTokenAddress = "0x59014d3017a5ad194d6b8a82a34b5b43beca72f7";
 const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
@@ -94,6 +95,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [xusdBalance, setXusdBalance] = useState("0.00 xUSD");
 
   const decimals = new BigNumber('100000000');
+  const bndecimals = BN.from(10).pow(BN.from(8));
+  const ethdecimals = BN.from(10).pow(BN.from(18));
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
   
   const name = useStoreState((store: { settings: { name: any; }; }) => store.settings.name) || "";
@@ -137,15 +140,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         await getRskBalance(rskAddress);
       }
       
-      // prepare preimage and hash for swap
-      const generatedPreimageArray = await generateSecureRandom(32);
-      const preimageHash = sha("sha256").update(generatedPreimageArray).digest();
-      const generatedPreimage = bytesToHexString(generatedPreimageArray);
-      console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
-      // const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
-      setPreimage(generatedPreimage);
-      setPreimageHash(getHexString(preimageHash));
-      console.log('got preimage, preimagehash: ', generatedPreimage, ' and ', getHexString(preimageHash));
+      await generateSecrets();
     
     })();
   }, []);
@@ -164,6 +159,18 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // }
     });
   }, [navigation]);
+
+  const generateSecrets = async () => {
+    // prepare preimage and hash for swap
+    const generatedPreimageArray = await generateSecureRandom(32);
+    const preimageHash = sha("sha256").update(generatedPreimageArray).digest();
+    const generatedPreimage = bytesToHexString(generatedPreimageArray);
+    // console.log('generatedPreimageArray, generatedPreimageString ', generatedPreimageArray, generatedPreimage);
+    // const preimageHash = crypto.sha256(getHexBuffer(generatedPreimage));
+    setPreimage(generatedPreimage);
+    setPreimageHash(getHexString(preimageHash));
+    console.log('got preimage, preimagehash: ', generatedPreimage, ' and ', getHexString(preimageHash));
+  }
 
   const getRskBalance = async (userAccount: any) => {
     // const rskClient = rskapi.client('https://public-node.rsk.co:443')
@@ -369,11 +376,16 @@ export default function Swap({ navigation }: ILightningInfoProps) {
           const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider)
           const erc20swap = erc20SwapContract.connect(rskSigner)
           // claim xUSD
-          // claiming with  0dd78b640bf2bf5932cce5f650e88b3f868da284b07353c76b02127f51500344 433244264 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 undefined 12679
-          console.log('claiming with ', '0x'+preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
-          const claimResult = await erc20swap.claim('0x'+preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
+          const bigAmount = BN.from(swapResponse.onchainAmount).mul(ethdecimals).div(bndecimals);
+          // claiming with  0dd78b640bf2bf5932cce5f650e88b3f868da284b07353c76b02127f51500344 4300125120000000000 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 undefined 12679
+          console.log('claiming with ', '0x'+preimage, bigAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
+          const claimResult = await erc20swap.claim('0x'+preimage, bigAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
           console.log('claimResult ', claimResult);
+          const waited = await claimResult.wait(1);
+          console.log('waited ', waited);
           setSending(false);
+
+          generateSecrets();
         }
       }, 1000);
       
