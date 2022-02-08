@@ -54,7 +54,8 @@ const log = logger("Swap");
 
 // regtest
 // const rskUrl = 'http://192.168.0.143:4444';
-const rskUrl = 'https://4444-pseudozach-lnsovbridge-u3b2cf9cjdk.ws-us30.gitpod.io/';
+const rskUrl = 'https://4444-pseudozach-lnsovbridge-kqylplodyt7.ws-us30.gitpod.io/';
+console.log('using rskurl: ', rskUrl);
 const chainId = 33;
 const xUSDTokenAddress = "0x59014d3017a5ad194d6b8a82a34b5b43beca72f7";
 const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
@@ -285,7 +286,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
     // console.log('updateQuoteAmount ', baseAmount);
     const amount = new BigNumber(baseAmount).dividedBy(decimals);
-    const rate = new BigNumber(pairData.rate);
+    let rate = new BigNumber(pairData.rate);
+    if(baseSymbol !== 'sats') rate = new BigNumber(1).div(rate);
     let fee = calculateFee(amount, rate);
     // console.log('updateQuoteAmount amount, rate ', amount.toNumber(), rate.toNumber());
     // console.log('updateQuoteAmount fee ', fee.toNumber());
@@ -327,20 +329,33 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     return percentageFee.plus(minerFee);
   };
 
+  const onClickFlip = () => {
+    // change base <-> quote
+    const bs = baseSymbol
+    setBaseSymbol(quoteSymbol)
+    setQuoteSymbol(baseSymbol)
+  }
+
   const onClickSend = async () => {
     try {
       if (!baseInput || !quoteInput) {
         throw new Error("Check amount");
+      }
+      if((baseSymbol === 'sats' && balance < baseInput) || 
+        (baseSymbol === 'xusd' && xusdBalance < baseInput)) {
+        throw new Error("There are not enough funds for this swap.");
       }
       // else if (!pubkeyInput) {
       //   throw new Error("Missing pubkey");
       // }
       setSending(true);
 
+      const swapBaseSymbol = baseSymbol === 'sats' ? 'BTC' : 'XUSD';
+      const swapQuoteSymbol = quoteSymbol === 'sats' ? 'BTC' : 'XUSD';
       const createSwapUrl = `${mardukApiUrl}/createswap`;
       const swapRequestBody = {
         "type": "reversesubmarine",
-        "pairId": "BTC/XUSD",
+        "pairId": swapBaseSymbol + "/" + swapQuoteSymbol, //"BTC/XUSD",
         "invoiceAmount": parseFloat(baseInput),
         "orderSide": "sell",
         // "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
@@ -390,6 +405,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
           if(waited.status == 1) {
             toast('Swap is successful', undefined, "success");
+            // TODO: update btc balance as well
           }
           
           // refresh secrets for a new swap
@@ -549,7 +565,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
   const formItems = [{
     key: "AMOUNT_BASE",
-    title: `From: Amount ${baseSymbol}`,
+    title: `From: ${baseSymbol}`,
     component: (
       <Input
         testID="input-amount-sat"
@@ -561,8 +577,25 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       />
     )}, 
     {
+      key: "FLIP_BUTTON",
+      title: `Change`,
+      component: (
+        <Button
+        style={{ }}
+        testID="flip-swap"
+        primary={true}
+        block={true}
+        disabled={!pairData || sending}
+        key="FLIP_SWAP"
+        onPress={onClickFlip}
+      >
+        <Text>{baseSymbol} {' 🔄 '} {quoteSymbol}</Text>
+      </Button>
+      )
+    },
+    {
       key: "AMOUNT_QUOTE",
-      title: `To: Amount  ${quoteSymbol}`,
+      title: `To: ${quoteSymbol}`,
       component: (
         <Input
           testID="input-amount-xusd"
@@ -625,6 +658,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         style={{ flexGrow: 1}}
         items={formItems}
         buttons={[
+          <>
           <Button
             style={{ marginTop: 32 }}
             testID="create-swap"
@@ -641,6 +675,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
               <Text>Start</Text>
             }
           </Button>
+          </>
         ]}
       />
     </KeyboardAwareScrollView>
