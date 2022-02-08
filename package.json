@@ -9,6 +9,7 @@
     "test-update-snapshot": "jest --silent --roots tests --updateSnapshot",
     "gen-proto": "pbjs -t static-module -w es6 --force-long -o proto/lightning.js proto/*.proto proto/*/*.proto && pbts -o proto/lightning.d.ts proto/lightning.js",
     "build-tor-lib": "./build-tor",
+    "forwardports": "../nodetest/enableportforwarding.sh #forward 18443, 29000, 29001, 9735, 9736 from gitpod to blixt",
     "android:clean": "cd android && ./gradlew clean",
     "android:regtest-debug": "react-native run-android --variant chainregtestNormalDebug --appIdSuffix regtest.debug  --port 8084",
     "android:regtest": "react-native run-android --variant chainregtestNormalRelease --appIdSuffix regtest",

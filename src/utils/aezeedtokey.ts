@@ -34,18 +34,21 @@ interface IRskAccount {
 }
 
 export function getRskAccountfromAezeed(mnemonic: string): IRskAccount {
+    // console.log('getRskAccountfromAezeed started - got mnemonic ', mnemonic);
     console.log('getRskAccountfromAezeed started - got mnemonic ', mnemonic.split(" ")[0]);
     const words = mnemonic.split(' ');
 
     if (words.length !== NUM_WORDS) {
         console.log('Must be 24 words!');
-        return {address: '', privateKey: ''};
+        throw new Error('Must be 24 words!')
+        // return {address: '', privateKey: ''};
     }
 
     const belongToList = words.every(word => ethers.wordlists.en.getWordIndex(word) > -1);
     if (!belongToList) {
         console.log('Some words are not in the wordlist!');
-        return {address: '', privateKey: ''};
+        throw new Error('Some words are not in the wordlist!')
+        // return {address: '', privateKey: ''};
     }
 
     const bits = words
@@ -63,7 +66,8 @@ export function getRskAccountfromAezeed(mnemonic: string): IRskAccount {
             privateKey: rskAccount!.nodeBase58!.privateKey,
         };
     } else {
-        return {address: '', privateKey: ''};
+        throw new Error('decodeSeed failed')
+        // return {address: '', privateKey: ''};
     }
     // return;
 }
@@ -71,10 +75,11 @@ export function getRskAccountfromAezeed(mnemonic: string): IRskAccount {
 function decodeSeed(seed: any) {
     if (!seed || seed.length === 0 || seed[0] !== AEZEED_VERSION) {
       console.log('Invalid seed or version!');
-      return {address: ''};
+      throw new Error('Invalid seed or version!')
+    //   return {address: ''};
     }
 
-    // console.log('decodeSeed seed ', seed);
+    console.log('decodeSeed seed ', seed);
     const salt = seed.slice(SALT_OFFSET, SALT_OFFSET + SALT_LENGTH);
     // vm.passphrase2 || // assuming there's no passphrase on seed
     const password = Buffer.from(AEZEED_DEFAULT_PASSPHRASE, 'utf8');
@@ -83,10 +88,11 @@ function decodeSeed(seed: any) {
     // console.log('1decodeSeed checksum ', checksum);
 
     const newChecksum = crc32c.buf(seed.slice(0, CHECKSUM_OFFSET));
-    // console.log('decodeSeed newChecksum ', newChecksum, checksum.readUInt32BE(0));
+    console.log('decodeSeed newChecksum ', newChecksum, checksum.readUInt32BE(0));
     if (newChecksum !== checksum.readUInt32BE(0)) {
         console.log('Invalid seed checksum!');
-        return {address: ''};
+        throw new Error('Invalid seed checksum!')
+        // return {address: ''};
     }
 
     const decoded = {
@@ -116,7 +122,8 @@ function decodeSeed(seed: any) {
             // console.log('decodeSeed plainSeedBytes ', plainSeedBytes);
             if (plainSeedBytes == null) {
                 console.log('Decryption failed. Invalid passphrase?');
-                return;
+                throw new Error('Decryption failed. Invalid passphrase?')
+                // return;
             } else {
                 const saltHex = salt.toString('hex');
                 const version = plainSeedBytes.readUInt8(0);

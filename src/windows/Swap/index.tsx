@@ -34,6 +34,8 @@ const {
 import "@ethersproject/shims";
 import { erc20swapABI, minABI } from "./abi";
 import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
+import logger from "../../utils/log";
+const log = logger("Swap");
 
 // this doesnt play nice on android - using web3 directly
 // const rskapi = require('rskapi');
@@ -48,12 +50,14 @@ import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
 // const chainId = 30;
 // const xUSDTokenAddress = "0xb5999795be0ebb5bab23144aa5fd6a02d080299f";
 // const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
+// const mardukApiUrl = `https://api.marduk.exchange:9001`;
 
 // regtest
 const rskUrl = 'http://192.168.0.143:4444';
 const chainId = 33;
 const xUSDTokenAddress = "0x59014d3017a5ad194d6b8a82a34b5b43beca72f7";
 const erc20SwapAddress = "0x97eee86b78377215230bdf97a7e459e1ff9c63d8";
+const mardukApiUrl = `http://192.168.0.143:9001`;
 
 // rsk chainid: mainnet=30, testnet=31, regtest=33
 const rskRpcProvider = new ethers.providers.JsonRpcProvider(rskUrl, chainId);
@@ -90,7 +94,6 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [xusdBalance, setXusdBalance] = useState("0.00 xUSD");
 
   const decimals = new BigNumber('100000000');
-  const mardukApiUrl = `https://api.marduk.exchange:9001`;
   // const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
   
   const name = useStoreState((store: { settings: { name: any; }; }) => store.settings.name) || "";
@@ -111,7 +114,23 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // doesnt work on web - dummy value
       // TODO: do this only if this users rskAccount data is not in storage already
       if(!rskAddress && !rskPrivateKey) {
-        await deriveAddress();
+        const derived = await deriveAddress();
+        console.log('derived? ', derived);
+        if(derived === undefined) {
+          // sometimes aezeed -> bip39 extraction fails - fallback to generating a new seed for RSK
+          const newPK = await generateSecureRandom(32);
+          const newWallet = new ethers.Wallet(newPK, rskRpcProvider)
+          console.log('newWallet:', newWallet)
+          // {"_isSigner": true, "_mnemonic": [Function anonymous], "_signingKey": [Function anonymous], "address": "0xf6A094e74073841Cd80D1e60295AFb6f2F6a12Fd", "provider": null}
+          if (newWallet.address && newPK) {
+            await getRskBalance(newWallet.address.toLowerCase());
+    
+            setClaimAddress(newWallet.address.toLowerCase());
+            console.log('saving rskaccount to store');
+            setRskAddress(newWallet.address.toLowerCase());
+            setRskPrivateKey(newPK);
+          }
+        }
       } else {
         console.log('there is already rsk address in store ', rskAddress);
         setClaimAddress(rskAddress);
@@ -345,21 +364,40 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         });
         const swapStatus = await result2.json();
         if(swapStatus.status === 'transaction.confirmed') {
+          clearInterval(interval);
+          // connect signer
+          const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider)
+          const erc20swap = erc20SwapContract.connect(rskSigner)
           // claim xUSD
-          const claimResult = await erc20SwapContract.claim(preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddres, swapResponse.timeoutBlockHeight);
+          // claiming with  0dd78b640bf2bf5932cce5f650e88b3f868da284b07353c76b02127f51500344 433244264 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 undefined 12679
+          console.log('claiming with ', '0x'+preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
+          const claimResult = await erc20swap.claim('0x'+preimage, swapResponse.onchainAmount, xUSDTokenAddress, swapResponse.refundAddress, swapResponse.timeoutBlockHeight);
           console.log('claimResult ', claimResult);
+          setSending(false);
         }
       }, 1000);
       
       // pay miner invoice
-      const minerFeeResponse = await sendPaymentV2Sync(swapResponse.minerFeeInvoice);
-      console.log('minerFeeResponse ', minerFeeResponse);
+      console.log('paying minerFeeInvoice ', swapResponse.minerFeeInvoice);
 
+      // const sendPaymentResult = await sendPaymentV2Sync(
+      //   swapResponse.minerFeeInvoice,
+      //   // payload && payload.amount ? Long.fromValue(payload.amount) : undefined,
+      //   // name,
+      //   // multiPathPaymentsEnabled,
+      // );
+      // log.i("status", [sendPaymentResult.status, sendPaymentResult.failureReason]);
+
+      // dont wait for this because we need to send 2 payments
+      const minerFeeResponse = sendPaymentV2Sync(swapResponse.minerFeeInvoice);
+      // log.i("minerFeeResponse", [minerFeeResponse.status, minerFeeResponse.failureReason]);
+      // console.log('2minerFeeResponse ', minerFeeResponse);
+
+      // dont wait for this because we need to claim
       // pay swap hold invoice
-      const invoiceResponse = await sendPaymentV2Sync(swapResponse.invoice);
-      console.log('invoiceResponse ', invoiceResponse);
+      const invoiceResponse = sendPaymentV2Sync(swapResponse.invoice);
+      console.log('3invoiceResponse ', invoiceResponse);
       
-
       // const result = await sendKeysendPaymentV2(
       //   pubkeyInput,
       //   Long.fromValue(Number.parseInt(satInput, 10)),

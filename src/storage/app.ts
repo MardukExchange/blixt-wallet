@@ -164,8 +164,12 @@ export const setupApp = async () => {
     
     // added for gitpod regtest container
     bitcoindRpcHost = "192.168.0.143:18443"; 
+    // put these values to gitpod regtest container
     bitcoindRpcUser = "topkek";
     bitcoindRpcPass = "topkek";
+    // OR replace with values from gitpod docker/regtest/data/core/cookies/.bitcoin-cookie
+    // bitcoindRpcUser = "__cookie__";
+    // bitcoindRpcPass = "dbe137b748c61d82cf0ca7c8ca2a1ba357e1012daafc4cfaab0664510ee06be3";
     bitcoindPubRawBlock = "192.168.0.143:29001";
     bitcoindPubRawTx = "192.168.0.143:29000";
   }
