@@ -195,8 +195,10 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       // {"hex": "0x1b845ed858c729e104", "type": "BigNumber"}
       console.log('getRskBalance xusdBalance ', balance);
   
-      if(balance.hex) {
-        setXusdBalance((parseInt(balance.hex,16)/10**18).toFixed(2) + ' xUSD');
+      if(balance) {
+        const xUSDdecimalbalance = ethers.utils.formatUnits(balance, 18)
+        console.log('xUSDdecimalbalance ', xUSDdecimalbalance)
+        setXusdBalance(parseFloat(xUSDdecimalbalance).toFixed(2) + ' xUSD');
       }
       
     } catch (error) {
@@ -383,8 +385,19 @@ export default function Swap({ navigation }: ILightningInfoProps) {
           console.log('claimResult ', claimResult);
           const waited = await claimResult.wait(1);
           console.log('waited ', waited);
+          await getRskBalance(rskAddress);
           setSending(false);
 
+          if(waited.status == 1) {
+            toast('Swap is successful', undefined, "success");
+          }
+          
+          // refresh secrets for a new swap
+          generateSecrets();
+        }
+        if(swapStatus.status === 'transaction.failed') {
+          toast(swapStatus.status, undefined, "danger");
+          setSending(false);
           generateSecrets();
         }
       }, 1000);
@@ -460,8 +473,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
     } catch (e) {
       toast(e.message, undefined, "danger");
+      setSending(false);
     }
-    setSending(false);
   };
 
   const getPairs = async () => {
