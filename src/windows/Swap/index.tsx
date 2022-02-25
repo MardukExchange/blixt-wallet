@@ -53,8 +53,8 @@ const log = logger("Swap");
 // const mardukApiUrl = `https://api.marduk.exchange:9001`;
 
 // regtest
-// const rskUrl = 'http://192.168.0.143:4444';
-const rskUrl = 'https://4444-pseudozach-lnsovbridge-kqylplodyt7.ws-us30.gitpod.io/';
+// const rskUrl = 'http://192.168.0.143:4444'; // this gives nonetwork error for some reason
+const rskUrl = 'https://4444-pseudozach-lnsovbridge-qrl10kz2q0g.ws-us34.gitpod.io/';
 console.log('using rskurl: ', rskUrl);
 const chainId = 33;
 const xUSDTokenAddress = "0x59014d3017a5ad194d6b8a82a34b5b43beca72f7";
@@ -284,34 +284,32 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     // console.log('updateQuoteAmount pairData ', pairData);
     if (!pairData.rate) return;
 
-    // console.log('updateQuoteAmount ', baseAmount);
-    const amount = new BigNumber(baseAmount).dividedBy(decimals);
+    console.log('updateQuoteAmount ', baseAmount);
+    
+    let amount = new BigNumber(baseAmount).dividedBy(decimals);
     let rate = new BigNumber(pairData.rate);
-    if(baseSymbol !== 'sats') rate = new BigNumber(1).div(rate);
+    if(baseSymbol !== 'sats') {
+      amount = new BigNumber(baseAmount);
+      rate = new BigNumber(1).div(rate);
+    }
     let fee = calculateFee(amount, rate);
-    // console.log('updateQuoteAmount amount, rate ', amount.toNumber(), rate.toNumber());
-    // console.log('updateQuoteAmount fee ', fee.toNumber());
+    console.log('updateQuoteAmount amount, rate ', amount.toNumber(), rate.toNumber());
+    console.log('updateQuoteAmount fee ', fee.toNumber());
     const quote = amount
       .times(rate)
       .minus(fee.times(rate))
       .toFixed(8);
-    // console.log('updateQuoteAmount quote ', quote);
+    console.log('updateQuoteAmount quote ', quote);
     let newQuote = new BigNumber(quote);
     if (newQuote.isLessThanOrEqualTo(0) || newQuote.isNaN()) {
       newQuote = new BigNumber('0');
     }
-    // console.log('newQuote ', newQuote);
+    if(baseSymbol !== 'sats') {
+      newQuote = newQuote.multipliedBy(decimals);
+    }
+    console.log('newQuote ', newQuote);
     setBaseInput(baseAmount);
     setQuoteInput(newQuote.toNumber().toFixed(2));
-
-    // const inputError = !this.checkBaseAmount(amount);
-    // this.setState({
-    //   quoteAmount: newQuote,
-    //   baseAmount: amount,
-    //   feeAmount: fee,
-    //   inputError,
-    //   errorMessage: 'Invalid amount',
-    // });
   };
 
   const calculateFee = (baseAmount: BigNumber, rate: BigNumber) => {
@@ -352,7 +350,30 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
       const swapBaseSymbol = baseSymbol === 'sats' ? 'BTC' : 'XUSD';
       const swapQuoteSymbol = quoteSymbol === 'sats' ? 'BTC' : 'XUSD';
+      console.log('swapBaseSymbol, swapQuoteSymbol ', swapBaseSymbol, swapQuoteSymbol);
       const createSwapUrl = `${mardukApiUrl}/createswap`;
+
+      // xusd -> ln
+    //   {
+    //     "type": "submarine",
+    //     "pairId": "BTC/XUSD",
+    //     "orderSide": "buy",
+    //     "invoice": "lnbcrt125880n1p3pj9uspp5857hqttzsr0r95rstr6pamwtsw5cy89twqwn2sm0vdfy4tpmmtksdqqcqzpgsp5wy4z0yx65ptzws3cean7fm4xr48vsvlv9wp8uqgg9v7hlvnn37fq9qyyssqy08nsms9azt89uyk8alzy9ehq8q46y4u8svnu8fu257tuumnzjkqql50z2lgh6zhjpfsl9d8p62wamgxu2hgqmygjs6u67cyzasr6tgpvewaf0",
+    //     "refundPublicKey": "03c2739ad90e81d7525ab3c0f0bfd0af77573a3870bba5f69b184aa59cc93774be",
+    //     "channel": {
+    //         "auto": true,
+    //         "private": false,
+    //         "inboundLiquidity": 50
+    //     }
+    // }
+//       acceptZeroConf: false
+// address: "0x97eee86b78377215230bdf97a7e459e1ff9c63d8"
+// claimAddress: "0xeCb6b2a431826634E36d2787016670EBd8AF5A9B"
+// expectedAmount: 499796030
+// id: "9Ynxp6"
+// redeemScript: "307835393031344433303137413541443139344436623841383261333442356234334265434137324637"
+// timeoutBlockHeight: 7155
+
       const swapRequestBody = {
         "type": "reversesubmarine",
         "pairId": swapBaseSymbol + "/" + swapQuoteSymbol, //"BTC/XUSD",
