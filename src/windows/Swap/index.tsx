@@ -4,7 +4,7 @@ import { View } from "react-native";
 import Clipboard from "@react-native-community/clipboard";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
-import { sendPaymentV2Sync } from "../../lndmobile/index";
+import { addInvoice, sendPaymentV2Sync } from "../../lndmobile/index";
 import Long from "long";
 import { toast, hexToUint8Array, getHexString, uint8ArrayToString, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
 import { useStoreState, useStoreActions } from "../../state/store";
@@ -32,7 +32,7 @@ const {
   Networkish
 } = require("@ethersproject/networks");
 import "@ethersproject/shims";
-import { erc20swapABI, minABI } from "./abi";
+import { erc20swapABI, erc20tokenabi } from "./abi";
 import { formatBitcoin, convertBitcoinToFiat } from "../../utils/bitcoin-units";
 import logger from "../../utils/log";
 const log = logger("Swap");
@@ -63,7 +63,7 @@ const mardukApiUrl = `http://192.168.0.143:9001`;
 
 // rsk chainid: mainnet=30, testnet=31, regtest=33
 const rskRpcProvider = new ethers.providers.JsonRpcProvider(rskUrl, chainId);
-const xUSDContract = new ethers.Contract(xUSDTokenAddress, minABI, rskRpcProvider);
+const xUSDContract = new ethers.Contract(xUSDTokenAddress, erc20tokenabi, rskRpcProvider);
 // let xUSDContract = new web3.eth.Contract(minABI,xUSDTokenAddress);
 const erc20SwapContract = new ethers.Contract(erc20SwapAddress, erc20swapABI, rskRpcProvider);
 
@@ -93,7 +93,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   const [preimageHash, setPreimageHash] = useState("");
 
   const [claimAddress, setClaimAddress] = useState("");
-  const [xusdBalance, setXusdBalance] = useState("0.00 xUSD");
+  const [xusdBalance, setXusdBalance] = useState("0.00");
 
   const decimals = new BigNumber('100000000');
   const bndecimals = BN.from(10).pow(BN.from(8));
@@ -199,7 +199,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if(balance) {
         const xUSDdecimalbalance = ethers.utils.formatUnits(balance, 18)
         console.log('xUSDdecimalbalance ', xUSDdecimalbalance)
-        setXusdBalance(parseFloat(xUSDdecimalbalance).toFixed(2) + ' xUSD');
+        setXusdBalance(parseFloat(xUSDdecimalbalance).toFixed(2));
       }
       
     } catch (error) {
@@ -253,22 +253,54 @@ export default function Swap({ navigation }: ILightningInfoProps) {
   }
 
   const updateBaseAmount = (quoteAmount: string) => {
-    const amount = new BigNumber(quoteAmount);
-    const rate = new BigNumber(pairData.rate);
+    if (!pairData.rate) return;
 
-    const newBase = amount.dividedBy(rate);
-    const fee = calculateFee(newBase, rate);
+    console.log('updateBaseAmount ', quoteAmount);
 
-    const newBaseWithFee = fee.plus(newBase).multipliedBy(decimals);
-    // const inputError = !this.checkBaseAmount(newBaseWithFee);
-
-    if(!newBaseWithFee.isNaN()) {
-      setBaseInput(newBaseWithFee.toFixed(0));
-      setQuoteInput(amount.toString());
-    } else {
-      setBaseInput("0");
-      setQuoteInput("0");
+    let amount = new BigNumber(quoteAmount).dividedBy(decimals);
+    let rate = new BigNumber(1).div(pairData.rate);
+    if(baseSymbol !== 'sats') {
+      amount = new BigNumber(quoteAmount);
+      rate = new BigNumber(pairData.rate);
     }
+    let fee = calculateFee(amount, rate);
+    console.log('updateBaseAmount amount, rate ', amount.toNumber(), rate.toNumber());
+    console.log('updateBaseAmount fee ', fee.toNumber());
+    const quote = amount
+      .times(rate)
+      .minus(fee.times(rate))
+      .toFixed(8);
+    console.log('updateBaseAmount quote ', quote);
+    let newQuote = new BigNumber(quote);
+    if (newQuote.isLessThanOrEqualTo(0) || newQuote.isNaN()) {
+      newQuote = new BigNumber('0');
+    }
+    if(baseSymbol !== 'sats') {
+      newQuote = newQuote.dividedBy(decimals);
+    }
+    console.log('newQuote ', newQuote);
+    setBaseInput(newQuote.toNumber().toFixed(2));
+    setQuoteInput(quoteAmount);
+
+
+
+    // // old way?
+    // const amount = new BigNumber(quoteAmount);
+    // const rate = new BigNumber(pairData.rate);
+
+    // const newBase = amount.dividedBy(rate);
+    // const fee = calculateFee(newBase, rate);
+
+    // const newBaseWithFee = fee.plus(newBase).multipliedBy(decimals);
+    // // const inputError = !this.checkBaseAmount(newBaseWithFee);
+
+    // if(!newBaseWithFee.isNaN()) {
+    //   setBaseInput(newBaseWithFee.toFixed(0));
+    //   setQuoteInput(amount.toString());
+    // } else {
+    //   setBaseInput("0");
+    //   setQuoteInput("0");
+    // }
 
     // this.setState({
     //   quoteAmount: amount,
@@ -339,8 +371,9 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if (!baseInput || !quoteInput) {
         throw new Error("Check amount");
       }
+      console.log('onclicksend ', baseSymbol, balance < baseInput, xusdBalance < baseInput, xusdBalance, baseInput);
       if((baseSymbol === 'sats' && balance < baseInput) || 
-        (baseSymbol === 'xusd' && xusdBalance < baseInput)) {
+        (baseSymbol === 'xusd' && Number(xusdBalance) < Number(baseInput))) {
         throw new Error("There are not enough funds for this swap.");
       }
       // else if (!pubkeyInput) {
@@ -374,15 +407,29 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 // redeemScript: "307835393031344433303137413541443139344436623841383261333442356234334265434137324637"
 // timeoutBlockHeight: 7155
 
-      const swapRequestBody = {
-        "type": "reversesubmarine",
-        "pairId": swapBaseSymbol + "/" + swapQuoteSymbol, //"BTC/XUSD",
-        "invoiceAmount": parseFloat(baseInput),
-        "orderSide": "sell",
-        // "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
-        claimAddress,
-        preimageHash,
-        prepayMinerFee: true,
+      let swapRequestBody;
+      if (swapBaseSymbol === 'BTC') {
+        swapRequestBody = {
+          type: "reversesubmarine",
+          "pairId": swapBaseSymbol + "/" + swapQuoteSymbol, //"BTC/XUSD",
+          "invoiceAmount": parseFloat(baseInput),
+          "orderSide": "sell",
+          // "claimPublicKey": "0205b9e12976d585fc4e931159952320393e069cb686d54519987545b7e91dc8ad",
+          claimAddress,
+          preimageHash,
+          prepayMinerFee: true,
+        }
+      } else {
+        const invoice  = await addInvoice(Number(quoteInput), `Swap from ${swapQuoteSymbol} to ${swapBaseSymbol}`);
+        console.log('created invoice for ', quoteInput, invoice);
+        swapRequestBody = {
+          type: "submarine",
+          "pairId": `${swapQuoteSymbol}/${swapBaseSymbol}`  , //"BTC/XUSD",
+          "invoiceAmount": parseFloat(baseInput),
+          "orderSide": "buy",
+          "invoice": invoice.paymentRequest,
+          "refundPublicKey": preimage,
+        }
       }
       console.log('swapRequestBody ', swapRequestBody);
       const result = await fetch(createSwapUrl, {
@@ -407,11 +454,13 @@ export default function Swap({ navigation }: ILightningInfoProps) {
           },
           body: JSON.stringify({id: swapResponse.id}),
         });
+        
         const swapStatus = await result2.json();
-        if(swapStatus.status === 'transaction.confirmed') {
+        console.log('swapStatus ', swapStatus);
+        if(swapStatus.status === 'transaction.confirmed' && swapBaseSymbol === 'BTC') {
           clearInterval(interval);
           // connect signer
-          const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider)
+          const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider);
           const erc20swap = erc20SwapContract.connect(rskSigner)
           // claim xUSD
           const bigAmount = BN.from(swapResponse.onchainAmount).mul(ethdecimals).div(bndecimals);
@@ -439,27 +488,73 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         }
       }, 1000);
       
-      // pay miner invoice
-      console.log('paying minerFeeInvoice ', swapResponse.minerFeeInvoice);
+      if(swapBaseSymbol === 'BTC') {
+        // reverse submarine swap
+        // pay miner invoice
+        console.log('paying minerFeeInvoice ', swapResponse.minerFeeInvoice);
 
-      // const sendPaymentResult = await sendPaymentV2Sync(
-      //   swapResponse.minerFeeInvoice,
-      //   // payload && payload.amount ? Long.fromValue(payload.amount) : undefined,
-      //   // name,
-      //   // multiPathPaymentsEnabled,
-      // );
-      // log.i("status", [sendPaymentResult.status, sendPaymentResult.failureReason]);
+        // const sendPaymentResult = await sendPaymentV2Sync(
+        //   swapResponse.minerFeeInvoice,
+        //   // payload && payload.amount ? Long.fromValue(payload.amount) : undefined,
+        //   // name,
+        //   // multiPathPaymentsEnabled,
+        // );
+        // log.i("status", [sendPaymentResult.status, sendPaymentResult.failureReason]);
 
-      // dont wait for this because we need to send 2 payments
-      const minerFeeResponse = sendPaymentV2Sync(swapResponse.minerFeeInvoice);
-      // log.i("minerFeeResponse", [minerFeeResponse.status, minerFeeResponse.failureReason]);
-      // console.log('2minerFeeResponse ', minerFeeResponse);
+        // dont wait for this because we need to send 2 payments
+        const minerFeeResponse = sendPaymentV2Sync(swapResponse.minerFeeInvoice);
+        // log.i("minerFeeResponse", [minerFeeResponse.status, minerFeeResponse.failureReason]);
+        // console.log('2minerFeeResponse ', minerFeeResponse);
 
-      // dont wait for this because we need to claim
-      // pay swap hold invoice
-      const invoiceResponse = sendPaymentV2Sync(swapResponse.invoice);
-      console.log('3invoiceResponse ', invoiceResponse);
-      
+        // dont wait for this because we need to claim
+        // pay swap hold invoice
+        const invoiceResponse = sendPaymentV2Sync(swapResponse.invoice);
+        console.log('3invoiceResponse ', invoiceResponse);
+      }
+
+      // assuming swap got created & invoice.set
+      if(swapResponse.id && swapBaseSymbol === 'XUSD') {
+        console.log('enter locking');
+        // clearInterval(interval);
+        // connect signer
+        const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider)
+        console.log('2enter locking');
+        const erc20swap = erc20SwapContract.connect(rskSigner);
+        const erc20token = xUSDContract.connect(rskSigner);
+        // lock xUSD
+        console.log('3enter locking ', swapResponse.expectedAmount);
+        const bigAmount = BN.from(swapResponse.expectedAmount).mul(ethdecimals).div(bndecimals);
+        
+        // need to approve token transfers!
+        const approveResult = await erc20token.approve(swapResponse.address, bigAmount);
+        console.log('approveResult ', approveResult);
+        const approvalWaited = await approveResult.wait(1);
+        console.log('approvalWaited ', approvalWaited);
+
+        // claiming with  0dd78b640bf2bf5932cce5f650e88b3f868da284b07353c76b02127f51500344 4300125120000000000 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 undefined 12679
+        // locking with 0xd96af611b8c2c0658465c8968561d9dd878c1f4c54145233e407a67a57fbed07 {"hex": "0x455be67943c34800", "type": "BigNumber"} 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 0xeCb6b2a431826634E36d2787016670EBd8AF5A9B 17522
+        console.log('locking with ', '0x'+preimageHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
+        const lockResult = await erc20swap.lock('0x'+preimageHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
+        // function lock(
+        //   bytes32 preimageHash,
+        //   uint256 amount,
+        //   address tokenAddress,
+        //   address claimAddress,
+        //   uint timelock
+        console.log('lockResult ', lockResult);
+        const waited = await lockResult.wait(1);
+        console.log('waited ', waited);
+        await getRskBalance(rskAddress);
+        setSending(false);
+
+        if(waited.status == 1) {
+          toast('Swap is successful', undefined, "success");
+          // TODO: update btc balance as well
+        }
+        
+        // refresh secrets for a new swap
+        generateSecrets();
+      }
       // const result = await sendKeysendPaymentV2(
       //   pubkeyInput,
       //   Long.fromValue(Number.parseInt(satInput, 10)),
@@ -663,7 +758,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       <View style={{ alignItems: "center" }}>
         <H1 style={{ marginTop: 10, marginBottom: 5 }}>Swap BTC {'<->'} xUSD</H1>
         <Text style={{color: "whitesmoke"}}>Lightning Balance: {bitcoinBalance}</Text>
-        <Text style={{color: "whitesmoke"}}>xUSD Balance: {xusdBalance}</Text>
+        <Text style={{color: "whitesmoke"}}>xUSD Balance: {xusdBalance} xUSD</Text>
       </View>
       <View style={{ padding: 16 }}>
         <Text style={{ marginBottom: 8 }}>
