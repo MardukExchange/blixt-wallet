@@ -4,7 +4,7 @@ import { View } from "react-native";
 import Clipboard from "@react-native-community/clipboard";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
-import { addInvoice, sendPaymentV2Sync } from "../../lndmobile/index";
+import { addInvoice, decodePayReq, sendPaymentV2Sync } from "../../lndmobile/index";
 import Long from "long";
 import { toast, hexToUint8Array, getHexString, uint8ArrayToString, uint8ArrayToUnicodeString, bytesToHexString } from "../../utils";
 import { useStoreState, useStoreActions } from "../../state/store";
@@ -364,6 +364,10 @@ export default function Swap({ navigation }: ILightningInfoProps) {
     const bs = baseSymbol
     setBaseSymbol(quoteSymbol)
     setQuoteSymbol(baseSymbol)
+    
+    const baseInputHolder = baseInput;
+    setBaseInput(quoteInput);
+    setQuoteInput(baseInputHolder);
   }
 
   const onClickSend = async () => {
@@ -371,8 +375,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       if (!baseInput || !quoteInput) {
         throw new Error("Check amount");
       }
-      console.log('onclicksend ', baseSymbol, balance < baseInput, xusdBalance < baseInput, xusdBalance, baseInput);
-      if((baseSymbol === 'sats' && balance < baseInput) || 
+      console.log('onclicksend ', baseSymbol, balance < baseInput, xusdBalance < baseInput, balance, xusdBalance, baseInput);
+      if((baseSymbol === 'sats' && balance.low < baseInput) || 
         (baseSymbol === 'xusd' && Number(xusdBalance) < Number(baseInput))) {
         throw new Error("There are not enough funds for this swap.");
       }
@@ -386,28 +390,8 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       console.log('swapBaseSymbol, swapQuoteSymbol ', swapBaseSymbol, swapQuoteSymbol);
       const createSwapUrl = `${mardukApiUrl}/createswap`;
 
-      // xusd -> ln
-    //   {
-    //     "type": "submarine",
-    //     "pairId": "BTC/XUSD",
-    //     "orderSide": "buy",
-    //     "invoice": "lnbcrt125880n1p3pj9uspp5857hqttzsr0r95rstr6pamwtsw5cy89twqwn2sm0vdfy4tpmmtksdqqcqzpgsp5wy4z0yx65ptzws3cean7fm4xr48vsvlv9wp8uqgg9v7hlvnn37fq9qyyssqy08nsms9azt89uyk8alzy9ehq8q46y4u8svnu8fu257tuumnzjkqql50z2lgh6zhjpfsl9d8p62wamgxu2hgqmygjs6u67cyzasr6tgpvewaf0",
-    //     "refundPublicKey": "03c2739ad90e81d7525ab3c0f0bfd0af77573a3870bba5f69b184aa59cc93774be",
-    //     "channel": {
-    //         "auto": true,
-    //         "private": false,
-    //         "inboundLiquidity": 50
-    //     }
-    // }
-//       acceptZeroConf: false
-// address: "0x97eee86b78377215230bdf97a7e459e1ff9c63d8"
-// claimAddress: "0xeCb6b2a431826634E36d2787016670EBd8AF5A9B"
-// expectedAmount: 499796030
-// id: "9Ynxp6"
-// redeemScript: "307835393031344433303137413541443139344436623841383261333442356234334265434137324637"
-// timeoutBlockHeight: 7155
-
       let swapRequestBody;
+      let decodedHash = '';
       if (swapBaseSymbol === 'BTC') {
         swapRequestBody = {
           type: "reversesubmarine",
@@ -422,10 +406,15 @@ export default function Swap({ navigation }: ILightningInfoProps) {
       } else {
         const invoice  = await addInvoice(Number(quoteInput), `Swap from ${swapQuoteSymbol} to ${swapBaseSymbol}`);
         console.log('created invoice for ', quoteInput, invoice);
+        const decodedPayreq = await decodePayReq(invoice.paymentRequest);
+        console.log('decoded decodedPayreq ', decodedPayreq);
+        decodedHash = '0x'+decodedPayreq.paymentHash;
+        // setPreimageHash(decodedPayreq.paymentHash);
+        // console.log('set preimageHash ', preimageHash);
         swapRequestBody = {
           type: "submarine",
           "pairId": `${swapQuoteSymbol}/${swapBaseSymbol}`  , //"BTC/XUSD",
-          "invoiceAmount": parseFloat(baseInput),
+          // "invoiceAmount": parseFloat(baseInput),
           "orderSide": "buy",
           "invoice": invoice.paymentRequest,
           "refundPublicKey": preimage,
@@ -456,7 +445,7 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         });
         
         const swapStatus = await result2.json();
-        console.log('swapStatus ', swapStatus);
+        // console.log('swapStatus.438 ', swapStatus);
         if(swapStatus.status === 'transaction.confirmed' && swapBaseSymbol === 'BTC') {
           clearInterval(interval);
           // connect signer
@@ -486,20 +475,15 @@ export default function Swap({ navigation }: ILightningInfoProps) {
           setSending(false);
           generateSecrets();
         }
+        if(swapStatus.error === 'undefined parameter: id' || swapStatus.status === 'swap.expired') {
+          clearInterval(interval);
+        }
       }, 1000);
       
       if(swapBaseSymbol === 'BTC') {
         // reverse submarine swap
         // pay miner invoice
         console.log('paying minerFeeInvoice ', swapResponse.minerFeeInvoice);
-
-        // const sendPaymentResult = await sendPaymentV2Sync(
-        //   swapResponse.minerFeeInvoice,
-        //   // payload && payload.amount ? Long.fromValue(payload.amount) : undefined,
-        //   // name,
-        //   // multiPathPaymentsEnabled,
-        // );
-        // log.i("status", [sendPaymentResult.status, sendPaymentResult.failureReason]);
 
         // dont wait for this because we need to send 2 payments
         const minerFeeResponse = sendPaymentV2Sync(swapResponse.minerFeeInvoice);
@@ -514,15 +498,12 @@ export default function Swap({ navigation }: ILightningInfoProps) {
 
       // assuming swap got created & invoice.set
       if(swapResponse.id && swapBaseSymbol === 'XUSD') {
-        console.log('enter locking');
         // clearInterval(interval);
         // connect signer
         const rskSigner = new ethers.Wallet(rskPrivateKey, rskRpcProvider)
-        console.log('2enter locking');
         const erc20swap = erc20SwapContract.connect(rskSigner);
         const erc20token = xUSDContract.connect(rskSigner);
         // lock xUSD
-        console.log('3enter locking ', swapResponse.expectedAmount);
         const bigAmount = BN.from(swapResponse.expectedAmount).mul(ethdecimals).div(bndecimals);
         
         // need to approve token transfers!
@@ -531,16 +512,9 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         const approvalWaited = await approveResult.wait(1);
         console.log('approvalWaited ', approvalWaited);
 
-        // claiming with  0dd78b640bf2bf5932cce5f650e88b3f868da284b07353c76b02127f51500344 4300125120000000000 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 undefined 12679
-        // locking with 0xd96af611b8c2c0658465c8968561d9dd878c1f4c54145233e407a67a57fbed07 {"hex": "0x455be67943c34800", "type": "BigNumber"} 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 0xeCb6b2a431826634E36d2787016670EBd8AF5A9B 17522
-        console.log('locking with ', '0x'+preimageHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
-        const lockResult = await erc20swap.lock('0x'+preimageHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
-        // function lock(
-        //   bytes32 preimageHash,
-        //   uint256 amount,
-        //   address tokenAddress,
-        //   address claimAddress,
-        //   uint timelock
+       // locking with 0xd96af611b8c2c0658465c8968561d9dd878c1f4c54145233e407a67a57fbed07 {"hex": "0x455be67943c34800", "type": "BigNumber"} 0x59014d3017a5ad194d6b8a82a34b5b43beca72f7 0xeCb6b2a431826634E36d2787016670EBd8AF5A9B 17522
+        console.log('locking with ', decodedHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
+        const lockResult = await erc20swap.lock(decodedHash, bigAmount, xUSDTokenAddress, swapResponse.claimAddress.toLowerCase(), swapResponse.timeoutBlockHeight);
         console.log('lockResult ', lockResult);
         const waited = await lockResult.wait(1);
         console.log('waited ', waited);
@@ -555,53 +529,6 @@ export default function Swap({ navigation }: ILightningInfoProps) {
         // refresh secrets for a new swap
         generateSecrets();
       }
-      // const result = await sendKeysendPaymentV2(
-      //   pubkeyInput,
-      //   Long.fromValue(Number.parseInt(satInput, 10)),
-      //   await generateSecureRandom(32),
-      //   JSON.parse(routehintsInput || "[]"),
-      //   name,
-      //   messageInput,
-      // );
-      // console.log(result);
-      // toast("Payment successful");
-      // console.log("Payment request is " + result.paymentRequest);
-      // console.log(typeof result.paymentRequest);
-
-      // const transaction: ITransaction = {
-      //   date: result.creationDate,
-      //   description: "Keysend payment",
-      //   expire: Long.fromValue(0),
-      //   paymentRequest: result.paymentRequest,
-      //   remotePubkey: pubkeyInput,
-      //   rHash: result.paymentHash,
-      //   status: "SETTLED",
-      //   value: result.value.neg(),
-      //   valueMsat: result.valueMsat.neg().mul(1000),
-      //   amtPaidSat: result.value.neg(),
-      //   amtPaidMsat: result.valueMsat.neg().mul(1000),
-      //   fee: result.fee,
-      //   feeMsat: result.feeMsat,
-      //   nodeAliasCached: null,
-      //   payer: null,
-      //   valueUSD: 0,
-      //   valueFiat: 0,
-      //   valueFiatCurrency: "USD",
-      //   locationLong: null,
-      //   locationLat: null,
-      //   tlvRecordName: null,
-      //   type: "NORMAL",
-      //   website: null,
-      //   identifiedService: null,
-      //   lightningAddress: null,
-      //   lud16IdentifierMimeType: null,
-
-      //   preimage: hexToUint8Array(result.paymentPreimage),
-      //   lnurlPayResponse: null,
-
-      //   hops: [],
-      // };
-      // syncTransaction(transaction);
 
     } catch (e) {
       toast(e.message, undefined, "danger");
